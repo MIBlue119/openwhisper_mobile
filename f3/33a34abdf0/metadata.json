@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "f333a34abdf0",
+  "strategy": "auto-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "app/(tabs)/settings.tsx",
+    "src/components/ModelPicker.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f3/33a34abdf0/0/metadata.json",
+      "transcript": "/f3/33a34abdf0/0/full.jsonl",
+      "context": "",
+      "content_hash": "/f3/33a34abdf0/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 15553,
+    "cache_read_tokens": 1052155,
+    "output_tokens": 2316,
+    "api_call_count": 11
+  }
+}

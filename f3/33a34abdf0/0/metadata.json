@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "f333a34abdf0",
+  "session_id": "54ee5757-10c2-4548-87d6-dcaf38e79e19",
+  "strategy": "auto-commit",
+  "created_at": "2026-02-12T14:24:24.011598Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "app/(tabs)/settings.tsx",
+    "src/components/ModelPicker.tsx"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "3efcf52b-b3d2-4dda-9535-8448cb3c34b2",
+  "checkpoint_transcript_start": 280,
+  "transcript_lines_at_start": 280,
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 15553,
+    "cache_read_tokens": 1052155,
+    "output_tokens": 2316,
+    "api_call_count": 11
+  }
+}
