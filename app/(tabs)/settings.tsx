@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { ScrollView, Switch, Text, TextInput, View } from "react-native";
+import { Linking, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { useColorScheme } from "nativewind";
 import Constants from "expo-constants";
 import {
@@ -338,6 +338,39 @@ export default function SettingsScreen() {
             accessibilityLabel="Toggle audio cues"
           />
         </View>
+      </SettingsSection>
+
+      {/* Keyboard Extension */}
+      <SettingsSection
+        title="Keyboard Extension"
+        subtitle="Dictate from any app"
+      >
+        <View className="bg-gray-50 dark:bg-gray-900 rounded-xl p-4 mb-3" style={{ borderCurve: "continuous" as const }}>
+          <Text className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
+            Setup instructions:
+          </Text>
+          {[
+            "Settings → General → Keyboard → Keyboards",
+            'Add New Keyboard → "OpenWhispr Voice"',
+            "Tap OpenWhispr Voice → Enable Full Access",
+          ].map((text, i) => (
+            <Text
+              key={i}
+              className="text-xs text-gray-500 dark:text-gray-400 mb-1"
+            >
+              {i + 1}. {text}
+            </Text>
+          ))}
+        </View>
+        <Pressable
+          onPress={() => Linking.openSettings()}
+          className="bg-blue-500 rounded-lg py-3 active:opacity-80"
+          style={{ borderCurve: "continuous" as const }}
+        >
+          <Text className="text-white font-semibold text-sm text-center">
+            Open Settings
+          </Text>
+        </Pressable>
       </SettingsSection>
 
       {/* About */}

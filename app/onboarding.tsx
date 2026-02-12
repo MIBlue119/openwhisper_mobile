@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import {
+  Linking,
   Pressable,
   Text,
   TextInput,
@@ -13,7 +14,7 @@ import { usePermissions } from "@/src/hooks/usePermissions";
 import { storage } from "@/src/storage/mmkv";
 import { SettingKeys } from "@/src/hooks/useSettings";
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 function StepIndicator({ current, total }: { current: number; total: number }) {
   return (
@@ -248,6 +249,68 @@ function AgentNamingStep({ onNext }: { onNext: () => void }) {
   );
 }
 
+function KeyboardSetupStep({ onNext }: { onNext: () => void }) {
+  const openKeyboardSettings = useCallback(() => {
+    Linking.openURL("app-settings:").catch(() => {
+      // Fallback — some iOS versions handle this differently
+      Linking.openSettings();
+    });
+  }, []);
+
+  return (
+    <View className="flex-1 items-center justify-center px-8">
+      <View className="w-20 h-20 rounded-full bg-orange-50 dark:bg-orange-900/20 items-center justify-center mb-6">
+        <FontAwesome name="keyboard-o" size={36} color="#f97316" />
+      </View>
+      <Text className="text-2xl font-bold text-gray-900 dark:text-white text-center">
+        Keyboard Extension
+      </Text>
+      <Text className="text-base text-gray-500 mt-3 text-center leading-6 mb-6">
+        Dictate from any app using the OpenWhispr keyboard.
+      </Text>
+
+      <View className="w-full bg-gray-50 dark:bg-gray-900 rounded-xl p-4 mb-6" style={{ borderCurve: "continuous" }}>
+        <Text className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">
+          To enable:
+        </Text>
+        {[
+          "Open Settings → General → Keyboard",
+          "Tap Keyboards → Add New Keyboard",
+          'Select "OpenWhispr Voice"',
+          "Tap it again → Enable Full Access",
+        ].map((instruction, i) => (
+          <View key={i} className="flex-row items-start gap-2 mb-2">
+            <Text className="text-xs text-orange-500 font-bold mt-0.5">
+              {i + 1}.
+            </Text>
+            <Text className="text-sm text-gray-600 dark:text-gray-400 flex-1">
+              {instruction}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      <Pressable
+        onPress={openKeyboardSettings}
+        className="bg-gray-200 dark:bg-gray-700 rounded-xl px-8 py-3 active:opacity-80 mb-4"
+        style={{ borderCurve: "continuous" }}
+      >
+        <Text className="text-gray-800 dark:text-gray-200 font-semibold text-base">
+          Open Settings
+        </Text>
+      </Pressable>
+
+      <Pressable
+        onPress={onNext}
+        className="bg-blue-500 rounded-xl px-8 py-4 active:opacity-80"
+        style={{ borderCurve: "continuous" }}
+      >
+        <Text className="text-white font-semibold text-base">Continue</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function CompleteStep({ onFinish }: { onFinish: () => void }) {
   return (
     <View className="flex-1 items-center justify-center px-8">
@@ -296,7 +359,8 @@ export default function OnboardingScreen() {
       {step === 1 && <MicPermissionStep onNext={handleNext} />}
       {step === 2 && <TranscriptionSetupStep onNext={handleNext} />}
       {step === 3 && <AgentNamingStep onNext={handleNext} />}
-      {step === 4 && <CompleteStep onFinish={handleFinish} />}
+      {step === 4 && <KeyboardSetupStep onNext={handleNext} />}
+      {step === 5 && <CompleteStep onFinish={handleFinish} />}
     </View>
   );
 }
