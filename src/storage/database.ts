@@ -1,7 +1,7 @@
 import { openDatabaseSync, type SQLiteDatabase } from "expo-sqlite";
 
 const DB_NAME = "openwhispr.db";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let db: SQLiteDatabase | null = null;
 
@@ -14,26 +14,40 @@ export function getDatabase(): SQLiteDatabase {
 }
 
 function runMigrations(database: SQLiteDatabase): void {
-  database.execSync(`
-    CREATE TABLE IF NOT EXISTS transcriptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      text TEXT NOT NULL,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-      duration INTEGER,
-      model_used TEXT,
-      is_local INTEGER DEFAULT 1,
-      was_processed INTEGER DEFAULT 0,
-      processing_method TEXT
-    );
+  const currentVersion =
+    database.getFirstSync<{ user_version: number }>("PRAGMA user_version")
+      ?.user_version ?? 0;
 
-    CREATE TABLE IF NOT EXISTS custom_dictionary (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      word TEXT NOT NULL UNIQUE,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+  // v1: Initial schema
+  if (currentVersion < 1) {
+    database.execSync(`
+      CREATE TABLE IF NOT EXISTS transcriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        text TEXT NOT NULL,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        duration INTEGER,
+        model_used TEXT,
+        is_local INTEGER DEFAULT 1,
+        was_processed INTEGER DEFAULT 0,
+        processing_method TEXT
+      );
 
-    PRAGMA user_version = ${DB_VERSION};
-  `);
+      CREATE TABLE IF NOT EXISTS custom_dictionary (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        word TEXT NOT NULL UNIQUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  }
+
+  // v2: Add source column for keyboard extension
+  if (currentVersion < 2) {
+    database.execSync(`
+      ALTER TABLE transcriptions ADD COLUMN source TEXT DEFAULT 'app';
+    `);
+  }
+
+  database.execSync(`PRAGMA user_version = ${DB_VERSION};`);
 }
 
 // --- Transcription CRUD ---
@@ -47,6 +61,7 @@ export interface TranscriptionRow {
   is_local: number;
   was_processed: number;
   processing_method: string | null;
+  source: string | null;
 }
 
 export function insertTranscription(params: {
@@ -56,17 +71,19 @@ export function insertTranscription(params: {
   isLocal?: boolean;
   wasProcessed?: boolean;
   processingMethod?: string;
+  source?: "app" | "keyboard";
 }): number {
   const database = getDatabase();
   const result = database.runSync(
-    `INSERT INTO transcriptions (text, duration, model_used, is_local, was_processed, processing_method)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO transcriptions (text, duration, model_used, is_local, was_processed, processing_method, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     params.text,
     params.duration ?? null,
     params.modelUsed ?? null,
     params.isLocal !== false ? 1 : 0,
     params.wasProcessed ? 1 : 0,
-    params.processingMethod ?? null
+    params.processingMethod ?? null,
+    params.source ?? "app"
   );
   return result.lastInsertRowId;
 }
