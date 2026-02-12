@@ -38,6 +38,7 @@
     },
     "extra": {
       "eas": {
+        "projectId": "",
         "build": {
           "experimental": {
             "ios": {
