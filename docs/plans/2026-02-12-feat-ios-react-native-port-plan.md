@@ -458,6 +458,438 @@ The desktop app's core value is auto-paste: record speech and it appears in what
 
 A keyboard extension would allow voice dictation directly within any text field in any app -- the closest analog to the desktop's auto-paste. This is the most impactful iOS-specific feature but requires a separate Xcode target and shared App Group storage.
 
+---
+
+## v2 Feature Plan: Custom Keyboard Extension
+
+### Overview
+
+Build an iOS Custom Keyboard Extension that enables voice-to-text dictation directly within any text field in any app. The user switches to the OpenWhispr keyboard, taps a microphone button, speaks, and the transcribed text is inserted at the cursor position -- replicating the desktop app's auto-paste UX within iOS sandboxing constraints.
+
+### Critical Constraint: No Microphone in Keyboard Extensions
+
+**iOS keyboard extensions cannot access the microphone.** This is an Apple restriction since iOS 8, unchanged through iOS 18/26. Even with `RequestsOpenAccess = true` and Full Access granted, `AVAudioSession`/`AVAudioRecorder` calls fail with error `561145187` from the keyboard extension process.
+
+**Every shipping voice keyboard** (Wispr Flow, Willow, Spokenly) works around this by recording audio in the main app process and communicating results back to the keyboard extension via App Groups.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│              Main App (Expo/RN)                  │
+│                                                  │
+│  [Existing UI] [Settings] [Model Manager]        │
+│                                                  │
+│  ┌────────────────────────────────────────────┐  │
+│  │  BackgroundDictationService (NEW)          │  │
+│  │  - AVAudioSession (background mode)        │  │
+│  │  - Audio recording                         │  │
+│  │  - WhisperKit transcription                │  │
+│  │  - Cloud transcription fallback            │  │
+│  │  - AI reasoning pipeline                   │  │
+│  │  - Writes result → App Group               │  │
+│  └────────────────────────────────────────────┘  │
+│                                                  │
+│  Storage: App Group UserDefaults + File Container│
+│  Keychain: Shared access group for API keys      │
+└──────────────┬───────────────────▲───────────────┘
+               │ URL scheme        │ App Group
+               │ deep link         │ shared data
+               ▼                   │
+┌─────────────────────────────────────────────────┐
+│        Keyboard Extension (Native Swift)         │
+│                                                  │
+│  [SwiftUI UI: mic button + status + globe key]   │
+│  [UITextDocumentProxy: text insertion]            │
+│  [App Group reader: settings, transcriptions]     │
+│  [URL scheme launcher: opens main app]            │
+│  [Darwin notification observer: real-time IPC]    │
+│                                                  │
+│  Memory budget: ~8-15 MB / ~48-70 MB limit       │
+└─────────────────────────────────────────────────┘
+```
+
+### Key Technical Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Extension UI framework** | Native Swift + SwiftUI | React Native runtime (~30-40 MB) exceeds extension memory budget (~48-70 MB). RN team closed this as "not planned" ([#31910](https://github.com/facebook/react-native/issues/31910)). |
+| **Xcode target setup** | `@bacons/apple-targets` | Supports `keyboard` type natively, auto-mirrors App Group entitlements, shared code via `targets/_shared/`, active maintenance. Requires Expo SDK 53+. |
+| **Data sharing** | App Group UserDefaults + shared file container | Standard iOS pattern for app-to-extension communication. `group.com.openwhispr.mobile` identifier. |
+| **IPC mechanism** | Darwin notifications + App Group polling | `CFNotificationCenterGetDarwinNotifyCenter` for real-time signals (recording start/stop), App Group UserDefaults polling (0.5s) for state/text transfer. More responsive than polling alone. |
+| **Settings sharing** | Migrate MMKV to App Group path | MMKV supports custom directory via `path` parameter. One-line change in `src/storage/mmkv.ts`. No existing user base to migrate. |
+| **API key sharing** | Shared Keychain access group | Add `keychain-access-groups` entitlement to both targets. `expo-secure-store` may need native override. |
+| **WhisperKit location** | Main app only | Models require ~75MB+ memory at runtime. Extension memory limit makes in-extension inference impossible. |
+| **Keyboard type** | Dictation-only (no QWERTY) | Full keyboard replacement is massive scope. Competitors (Willow) also use dictation-only approach. Users switch keyboards for typing. |
+| **Recording flow** | Hybrid: background audio session + deep link fallback | First activation deep-links to main app to start background audio session. Subsequent dictations signal via Darwin notification without app switching. Falls back to deep link if session expires. |
+| **Open Access** | `RequestsOpenAccess = true` | Required for App Group access, network (cloud transcription), and clipboard. Keyboard must also work in degraded mode without Full Access (shows setup instructions). |
+
+### Communication Protocol
+
+The keyboard extension and main app communicate via a structured JSON state machine in App Group UserDefaults:
+
+```swift
+// Key: "com.openwhispr.dictation_state"
+struct DictationState: Codable {
+    let sessionId: String        // UUID per dictation
+    let state: DictationPhase    // idle | start_requested | recording | transcribing | complete | error
+    let text: String?            // Transcription result (when complete)
+    let error: String?           // Error message (when error)
+    let timestamp: TimeInterval  // For staleness detection
+}
+
+enum DictationPhase: String, Codable {
+    case idle
+    case startRequested = "start_requested"
+    case recording
+    case transcribing
+    case complete
+    case error
+}
+```
+
+**State transitions:**
+```
+Keyboard                          Main App
+   │                                 │
+   ├── write(startRequested) ──────> │
+   │   + Darwin notify               │
+   │                                 ├── read startRequested
+   │                                 ├── start AVAudioSession
+   │                                 ├── write(recording)
+   │ <── observe recording ──────────┤
+   │   (show recording UI)           │
+   │                                 │   ... user speaks ...
+   │                                 │
+   ├── write(startRequested.stop) ─> │  (or auto-stop on silence)
+   │                                 ├── stop recording
+   │                                 ├── write(transcribing)
+   │ <── observe transcribing ───────┤
+   │   (show spinner)                │
+   │                                 ├── run WhisperKit / cloud
+   │                                 ├── run AI reasoning (optional)
+   │                                 ├── write(complete, text: "...")
+   │ <── observe complete ───────────┤
+   │   insert text via proxy         │
+   │   write(idle)                   │
+   └─────────────────────────────────┘
+```
+
+**Race condition protection:** Each dictation uses a UUID `sessionId`. The keyboard only reads results matching its current session. Stale states (timestamp > 60s) are treated as `idle`.
+
+### User Flows
+
+**Flow A: First-time keyboard setup**
+1. User completes main app onboarding
+2. Onboarding step 6 (NEW): "Set Up Keyboard" with visual instructions
+3. User goes to iOS Settings > General > Keyboards > Add New Keyboard > OpenWhispr Voice
+4. User taps OpenWhispr Voice > enables "Allow Full Access"
+5. User confirms Apple's Full Access warning dialog
+
+**Flow B: First dictation per session (deep link)**
+1. User is in any app (Messages, Notes, etc.) with OpenWhispr keyboard active
+2. User taps microphone button in keyboard
+3. Keyboard writes `startRequested` + opens `openwhispr://dictate?session=<uuid>`
+4. iOS switches to OpenWhispr main app
+5. Main app starts background audio session + begins recording
+6. User speaks, taps "Done" (or silence auto-stop after 3s / max 5 min)
+7. Main app transcribes, writes `complete` + text to App Group
+8. User taps "Return" button or swipes back to source app
+9. Keyboard detects `complete`, inserts text via `textDocumentProxy.insertText()`
+
+**Flow C: Subsequent dictation (background session active)**
+1. User taps microphone button in keyboard
+2. Keyboard checks `backgroundSessionActive` flag in App Group
+3. Flag is true → keyboard writes `startRequested` + sends Darwin notification
+4. Main app (background) starts recording — yellow mic indicator in Dynamic Island
+5. User speaks, taps stop in keyboard
+6. Main app transcribes, writes result to App Group
+7. Keyboard inserts text — **no app switching required**
+
+**Flow D: Full Access not enabled**
+1. User switches to OpenWhispr keyboard
+2. Keyboard checks `self.hasFullAccess` → false
+3. Keyboard shows message: "Enable Full Access to use voice dictation" with instructions
+4. Globe/Next Keyboard button still works for switching away
+
+**Flow E: No model downloaded (local mode)**
+1. User taps dictate in keyboard
+2. Keyboard opens main app via deep link
+3. Main app detects no WhisperKit model → shows download prompt
+4. User downloads model, returns to source app, tries again
+
+### Implementation Phases
+
+#### Phase 7A: Infrastructure & App Group Setup
+
+**Goal:** Migrate shared storage to App Group, configure Xcode targets, establish IPC foundation.
+
+**Tasks:**
+- [x] Add App Group entitlement (`group.com.openwhispr.mobile`) to main app via `app.json` `ios.entitlements`
+- [x] Install `@bacons/apple-targets` (`npx expo install @bacons/apple-targets`)
+- [x] Create `targets/keyboard/` directory structure:
+  ```
+  targets/
+    keyboard/
+      expo-target.config.js    # type: "keyboard", entitlements, deployment target
+      Info.plist               # NSExtension config, RequestsOpenAccess, PrimaryLanguage
+      KeyboardViewController.swift  # Minimal UIInputViewController stub
+    _shared/
+      AppGroupStorage.swift    # Shared UserDefaults + file container helpers
+      DictationState.swift     # State machine types (DictationState, DictationPhase)
+      Constants.swift          # App Group ID, Darwin notification names, keys
+  ```
+- [x] Migrate MMKV storage to App Group container path in `src/storage/mmkv.ts`:
+  ```typescript
+  // react-native-mmkv v4 auto-detects AppGroupIdentifier from Info.plist
+  export const storage = createMMKV({
+    id: "openwhispr-settings",
+    encryptionKey: "openwhispr-v1",
+  });
+  // AppGroupIdentifier set in app.json → ios.infoPlist
+  ```
+- [ ] Add shared Keychain access group entitlement for API key sharing
+- [x] Configure `app.json` `extra.eas.build.experimental.ios.appExtensions` for EAS credential management
+- [x] Add `openwhispr://dictate` deep link handler in expo-router (new `app/dictate-bridge.tsx` or handle in `_layout.tsx`)
+- [x] Create `src/services/BackgroundDictationService.ts` stub (coordinates recording → transcription → App Group write)
+- [x] Run `npx expo prebuild --clean` and verify two Xcode targets exist
+- [x] Verify App Group entitlements in both targets' `.entitlements` files
+
+**Files to create/modify:**
+- `targets/keyboard/expo-target.config.js` (NEW)
+- `targets/keyboard/Info.plist` (NEW)
+- `targets/keyboard/KeyboardViewController.swift` (NEW — stub)
+- `targets/_shared/AppGroupStorage.swift` (NEW)
+- `targets/_shared/DictationState.swift` (NEW)
+- `targets/_shared/Constants.swift` (NEW)
+- `src/storage/mmkv.ts` (MODIFY — App Group path)
+- `src/storage/secureStorage.ts` (MODIFY — shared Keychain access group)
+- `app.json` (MODIFY — entitlements, appExtensions)
+- `app/dictate-bridge.tsx` (NEW — deep link handler)
+- `src/services/BackgroundDictationService.ts` (NEW — stub)
+
+#### Phase 7B: Keyboard Extension UI (Native Swift)
+
+**Goal:** Build the keyboard extension UI in SwiftUI with all states, Full Access detection, and text insertion.
+
+**Tasks:**
+- [ ] Implement `KeyboardViewController.swift` with SwiftUI hosting:
+  - Microphone button (large, centered) with tap and long-press
+  - "Next Keyboard" globe button (Apple requirement — `advanceToNextInputMode()`)
+  - Status indicator: idle / recording (pulsing) / transcribing (spinner) / done (checkmark) / error (message)
+  - Full Access detection (`hasFullAccess` check with setup guidance view)
+  - Dark mode support via `traitCollection.userInterfaceStyle`
+  - Haptic feedback on button taps (`UIImpactFeedbackGenerator`)
+- [ ] Implement App Group state observer:
+  - 0.5s polling timer for `DictationState` changes in App Group UserDefaults
+  - Darwin notification observer for real-time signals (`CFNotificationCenterGetDarwinNotifyCenter`)
+  - Session ID matching to prevent stale result insertion
+- [ ] Implement text insertion via `UITextDocumentProxy`:
+  - Smart whitespace: check `documentContextBeforeInput` — prepend space if last char isn't space/newline
+  - Handle long text (insert in one call — `insertText()` handles this correctly)
+- [ ] Implement URL scheme launcher:
+  - `UIApplication.shared.open(URL(string: "openwhispr://dictate?session=\(sessionId)")!)`
+  - Detect whether to deep-link (first use / session expired) or signal via Darwin notification (session active)
+- [ ] Configure keyboard height via Auto Layout constraints (~200pt for dictation-only)
+- [ ] Build and test on physical device (keyboard extensions don't work in simulator)
+
+**Files to create/modify:**
+- `targets/keyboard/KeyboardViewController.swift` (IMPLEMENT)
+- `targets/keyboard/Views/DictationButton.swift` (NEW)
+- `targets/keyboard/Views/StatusView.swift` (NEW)
+- `targets/keyboard/Views/FullAccessGuide.swift` (NEW)
+
+#### Phase 7C: Background Dictation Service (Main App)
+
+**Goal:** Implement the main app's background recording + transcription pipeline triggered by the keyboard extension.
+
+**Tasks:**
+- [ ] Implement `BackgroundDictationService.ts` (or native Swift service):
+  - Observe `DictationState.startRequested` in App Group (polling + Darwin notification)
+  - Start `AVAudioSession` with `.playAndRecord` category and `.defaultToSpeaker` option
+  - Configure background audio mode in `app.json`: `"UIBackgroundModes": ["audio"]`
+  - Record audio using `expo-av` Recording API (16kHz mono WAV)
+  - Implement silence detection: auto-stop after 3s below -40dB threshold
+  - Implement max duration: auto-stop after 5 minutes
+  - After recording stops: route through existing transcription pipeline (`useTranscription` logic)
+  - Write `DictationState.complete` with transcribed text to App Group
+  - Write `DictationState.error` with message on failure
+  - Set `backgroundSessionActive = true` flag in App Group
+  - Heartbeat: update `backgroundSessionLastPing` timestamp every 30s while session is alive
+- [ ] Implement deep link handler in `app/dictate-bridge.tsx`:
+  - Parse `session` parameter from URL
+  - Start `BackgroundDictationService` with session ID
+  - Show minimal recording UI (waveform + "Done" button + "Return to app" button)
+  - After transcription complete: show "Text ready — return to your app" message
+- [ ] Handle audio interruptions (phone call, Siri):
+  - Stop recording, transcribe partial audio if > 1s
+  - Write partial result with `wasPartial: true` flag
+- [ ] Handle app termination:
+  - Set `backgroundSessionActive = false` on `applicationWillTerminate`
+  - Keyboard extension detects expired session, falls back to deep link
+
+**Files to create/modify:**
+- `src/services/BackgroundDictationService.ts` (IMPLEMENT)
+- `app/dictate-bridge.tsx` (IMPLEMENT)
+- `app.json` (MODIFY — `UIBackgroundModes: ["audio"]`)
+- `src/hooks/useAudioRecording.ts` (MODIFY — add silence detection, max duration)
+
+#### Phase 7D: Settings Sync & Onboarding Integration
+
+**Goal:** Ensure settings, onboarding, and keyboard setup are fully integrated.
+
+**Tasks:**
+- [ ] Verify MMKV reads/writes work from both main app and keyboard extension (App Group path)
+- [ ] Add onboarding step 6: "Set Up Keyboard" (between Agent Naming and Complete):
+  - Visual instructions with iOS Settings screenshots
+  - Steps: Settings > General > Keyboards > Add New > OpenWhispr Voice > Allow Full Access
+  - "Skip for now" option (keyboard setup can be done later from Settings)
+- [ ] Add "Keyboard Setup" section to Settings screen (`app/(tabs)/settings.tsx`):
+  - Detect if keyboard is installed (no reliable API — show setup instructions always)
+  - Link to iOS keyboard settings (`UIApplication.shared.open(URL(string: "App-prefs:General&path=Keyboard")!)`)
+  - Full Access status check and guidance
+- [ ] Update transcription database schema: add `source` column (`"app"` | `"keyboard"`)
+- [ ] Update `transcriptionStore.ts` to include `source` field
+- [ ] Update history screen to show source badge (app vs keyboard)
+- [ ] Mirror custom dictionary from MMKV to App Group UserDefaults for keyboard access
+- [ ] Test settings changes propagation: change language in main app → keyboard uses new language on next dictation
+
+**Files to create/modify:**
+- `app/onboarding.tsx` (MODIFY — add keyboard setup step, TOTAL_STEPS = 6)
+- `app/(tabs)/settings.tsx` (MODIFY — add Keyboard Setup section)
+- `src/storage/database.ts` (MODIFY — add `source` column migration)
+- `src/stores/transcriptionStore.ts` (MODIFY — add `source` field)
+- `app/(tabs)/history.tsx` (MODIFY — source badge)
+
+#### Phase 7E: Testing, Polish & Edge Cases
+
+**Goal:** Comprehensive testing on physical devices, edge case handling, App Store readiness.
+
+**Tasks:**
+- [ ] Test on physical iPhone (keyboard extensions don't work in simulator)
+- [ ] Test first-time flow: install → onboard → add keyboard → enable Full Access → dictate
+- [ ] Test repeated dictation: dictate → insert → dictate again → insert (no stale results)
+- [ ] Test background session flow: deep-link once → subsequent dictations without app switching
+- [ ] Test background session expiration: force-kill main app → keyboard falls back to deep link
+- [ ] Test cloud transcription from keyboard (requires network + API key)
+- [ ] Test AI reasoning from keyboard (agent name detection + cleanup)
+- [ ] Test offline + local mode (WhisperKit only, no network needed)
+- [ ] Test offline + cloud mode (should show clear error in keyboard)
+- [ ] Test audio interruption: phone call during recording → partial transcription
+- [ ] Test secure text fields: iOS replaces custom keyboard → no action needed
+- [ ] Test Full Access not granted: degraded mode shows setup instructions
+- [ ] Test memory usage: keyboard extension stays under 30 MB (profile with Instruments)
+- [ ] Test iPad: keyboard appears and functions correctly
+- [ ] Test Dark Mode in keyboard extension
+- [ ] Test VoiceOver accessibility in keyboard extension
+- [ ] Add privacy policy explaining Full Access data usage (required for App Review)
+- [ ] Test EAS Build with extension target included
+- [ ] Test TestFlight distribution with keyboard extension
+
+**Deliverables:** Production-ready keyboard extension with robust error handling and all edge cases covered.
+
+### Acceptance Criteria
+
+#### Functional Requirements
+- [ ] User can add OpenWhispr keyboard from iOS Settings
+- [ ] User can enable Full Access for the keyboard
+- [ ] User can switch to OpenWhispr keyboard in any text field
+- [ ] Tapping dictation button triggers recording (via main app)
+- [ ] Transcribed text is inserted at cursor position in the host app
+- [ ] Smart whitespace insertion (prepend space when needed)
+- [ ] Background session flow works without app switching (after first activation)
+- [ ] Settings (language, model, local/cloud) are shared between app and extension
+- [ ] API keys are accessible to main app from keyboard-triggered dictation
+- [ ] Custom dictionary is applied to keyboard-triggered transcriptions
+- [ ] AI reasoning works for keyboard-triggered dictations
+- [ ] Transcription history records keyboard-originated entries with `source: "keyboard"`
+- [ ] Keyboard shows clear status: idle, recording, transcribing, done, error
+- [ ] Keyboard shows setup guidance when Full Access is not enabled
+- [ ] Keyboard supports Dark Mode
+
+#### Non-Functional Requirements
+- [ ] Keyboard extension memory usage < 30 MB
+- [ ] Keyboard appears in < 200ms (no React Native runtime)
+- [ ] Text insertion latency < 100ms after transcription complete
+- [ ] Background audio session survives app backgrounding for at least 10 minutes
+- [ ] Graceful degradation on audio interruption (partial transcription)
+
+### Dependencies & Prerequisites
+
+| Dependency | Status | Notes |
+|------------|--------|-------|
+| Phases 1-5 complete | Done | Core app functionality required |
+| `@bacons/apple-targets` | Requires Expo SDK 53+ | May need SDK upgrade from current 54 — verify compatibility |
+| Physical iPhone for testing | Required | Keyboard extensions don't work in iOS Simulator |
+| Apple Developer account | Required | For App Group entitlements and provisioning profiles |
+| EAS Build configured | Required | For building with extension target |
+
+### Risk Analysis
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| Background audio session killed by iOS | Medium | High — breaks seamless flow | Heartbeat detection + automatic deep-link fallback |
+| App Review rejection for Full Access | Low | High — blocks release | Clear privacy policy, minimal data collection, degraded mode without Full Access |
+| `@bacons/apple-targets` incompatibility with Expo SDK 54 | Low | Medium | Fallback to manual config plugin (`withDangerousMod`) |
+| MMKV App Group migration breaks existing storage | Low | Medium | No existing user base; clean migration |
+| Memory limit exceeded in keyboard extension | Low | High — silent crash | Keep extension pure Swift, no heavy frameworks, profile regularly |
+| User confusion about keyboard setup | High | Medium — reduces adoption | Clear onboarding step, in-app setup guide, FAQs |
+
+### Future Enhancements (Post-v2)
+
+- **Apple SpeechAnalyzer (iOS 26+):** System-managed on-device speech recognition with zero app memory overhead. [Argmax is integrating with WhisperKit](https://www.argmaxinc.com/blog/apple-and-argmax). Could enable in-extension transcription.
+- **Full QWERTY keyboard layout:** Add typing capability alongside dictation. Consider [KeyboardKit](https://github.com/KeyboardKit/KeyboardKit) open-source library.
+- **Siri Shortcuts integration:** Trigger dictation via Action Button or Back Tap without opening the keyboard.
+- **Live Activities / Dynamic Island:** Show recording status in Dynamic Island while recording in background.
+- **Streaming transcription:** Use Deepgram/AssemblyAI for real-time word-by-word insertion as user speaks.
+- **Clipboard-based fallback (Spokenly pattern):** For users who don't want a custom keyboard — dictate in app, auto-copy to clipboard.
+
+### References
+
+#### Apple Documentation
+- [Custom Keyboard Programming Guide](https://developer.apple.com/library/archive/documentation/General/Conceptual/ExtensibilityPG/CustomKeyboard.html)
+- [Creating a Custom Keyboard](https://developer.apple.com/documentation/UIKit/creating-a-custom-keyboard)
+- [Configuring Open Access](https://developer.apple.com/documentation/uikit/configuring-open-access-for-a-custom-keyboard)
+- [UITextDocumentProxy](https://developer.apple.com/documentation/uikit/uitextdocumentproxy)
+- [SpeechAnalyzer (iOS 26)](https://developer.apple.com/documentation/speech/speechanalyzer)
+
+#### Packages & Libraries
+- [@bacons/apple-targets](https://github.com/EvanBacon/expo-apple-targets) — Expo plugin for adding Apple extension targets
+- [expo-keyboard-extension](https://github.com/cmaycumber/expo-keyboard-extension) — React Native keyboard extension (reference only)
+- [KeyboardKit](https://github.com/KeyboardKit/KeyboardKit) — Open-source Swift keyboard framework
+
+#### Competitor Analysis
+- [Wispr Flow](https://wisprflow.ai) — "Flow Session" background audio pattern
+- [Willow Voice](https://techcrunch.com/2025/11/12/willows-voice-keyboard-lets-you-type-across-all-your-ios-apps-and-actually-edit-what-you-said/) — App-switch pattern (YC W25)
+- [Spokenly](https://spokenly.app/docs/ios/clipboard-dictation) — Shortcuts + clipboard pattern (on-device WhisperKit)
+
+#### Technical References
+- [React Native Keyboard Extension Memory Issue #31910](https://github.com/facebook/react-native/issues/31910)
+- [Argmax: Apple SpeechAnalyzer + WhisperKit](https://www.argmaxinc.com/blog/apple-and-argmax)
+- [iOS App Extensions Data Sharing](https://dmtopolog.com/ios-app-extensions-data-sharing/)
+- [Expo iOS App Extensions Docs](https://docs.expo.dev/build-reference/app-extensions/)
+
+### How to Invoke
+
+```bash
+# Phase 7A: Infrastructure
+/workflows:work docs/plans/2026-02-12-feat-ios-react-native-port-plan.md "Implement Phase 7A: App Group setup, @bacons/apple-targets, MMKV migration, keyboard target scaffold"
+
+# Phase 7B: Keyboard UI
+/workflows:work docs/plans/2026-02-12-feat-ios-react-native-port-plan.md "Implement Phase 7B: Native Swift keyboard extension UI with dictation button, status, text insertion"
+
+# Phase 7C: Background Dictation
+/workflows:work docs/plans/2026-02-12-feat-ios-react-native-port-plan.md "Implement Phase 7C: BackgroundDictationService, deep link handler, audio recording, transcription pipeline"
+
+# Phase 7D: Settings & Onboarding
+/workflows:work docs/plans/2026-02-12-feat-ios-react-native-port-plan.md "Implement Phase 7D: Settings sync, onboarding keyboard step, database source column, history badges"
+
+# Phase 7E: Testing & Polish
+/workflows:work docs/plans/2026-02-12-feat-ios-react-native-port-plan.md "Implement Phase 7E: Physical device testing, edge cases, memory profiling, App Store readiness"
+```
+
+---
+
 ## Development Skills Reference
 
 During implementation, developers **must** consult the following skills in `.agents/skills/` for best practices and conventions:
@@ -482,7 +914,8 @@ Each phase follows this cycle: **start with `/workflows:work`** → implement �
 /workflows:work  (Phase 3) → implement → /workflows:review → fix findings →
 /workflows:work  (Phase 4) → implement → /workflows:review → fix findings →
 /workflows:work  (Phase 5) → implement → /workflows:review → fix findings →
-/workflows:work  (Phase 6) → implement → /workflows:review → final fixes → Release prep
+/workflows:work  (Phase 6) → implement → /workflows:review → fix findings →
+/workflows:work  (Phase 7A-E) → implement → /workflows:review → final fixes → Release prep
 ```
 
 **How to invoke each phase:**
@@ -517,6 +950,7 @@ Each phase follows this cycle: **start with `/workflows:work`** → implement �
 | Phase 4 (Data Layer) | Database schema design, migration safety, query performance, data integrity |
 | Phase 5 (Settings/UX) | UI accessibility (VoiceOver), edge case handling, theme consistency, onboarding flow |
 | Phase 6 (Auth/Cloud) | Auth flow security, session management, billing integration, data privacy |
+| Phase 7 (Keyboard Ext) | Extension memory budget, App Group data integrity, IPC race conditions, background session lifecycle, Full Access UX |
 
 ### Design Reference: Desktop App
 

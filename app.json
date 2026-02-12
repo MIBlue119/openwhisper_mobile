@@ -21,7 +21,34 @@
         "NSMicrophoneUsageDescription": "OpenWhispr needs microphone access to record your voice for speech-to-text transcription.",
         "UIBackgroundModes": [
           "audio"
+        ],
+        "AppGroupIdentifier": "group.com.openwhispr.mobile"
+      },
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.openwhispr.mobile"
         ]
+      }
+    },
+    "extra": {
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "OpenWhisprKeyboard",
+                  "bundleIdentifier": "com.openwhispr.mobile.keyboard",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.openwhispr.mobile"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
       }
     },
     "plugins": [
@@ -34,7 +61,8 @@
       ],
       "expo-secure-store",
       "expo-sqlite",
-      "./plugins/withWhisperKit"
+      "./plugins/withWhisperKit",
+      "@bacons/apple-targets"
     ],
     "experiments": {
       "typedRoutes": true
