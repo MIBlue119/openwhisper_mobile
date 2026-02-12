@@ -163,6 +163,7 @@ export default function SettingsScreen() {
             value={useLocal}
             onValueChange={setUseLocal}
             trackColor={{ false: "#d1d5db", true: "#3b82f6" }}
+            accessibilityLabel="Use local transcription model"
           />
         </View>
 
@@ -223,6 +224,7 @@ export default function SettingsScreen() {
             value={reasoningEnabled}
             onValueChange={setReasoningEnabled}
             trackColor={{ false: "#d1d5db", true: "#3b82f6" }}
+            accessibilityLabel="Enable AI text processing"
           />
         </View>
 

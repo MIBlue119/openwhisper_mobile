@@ -61,25 +61,37 @@ function TranscriptionItem({
   const preview =
     item.text.length > 120 ? item.text.slice(0, 120) + "..." : item.text;
 
+  const accessibilityLabel = [
+    formatDate(item.timestamp),
+    preview,
+    item.was_processed === 1 ? "AI processed" : null,
+    item.is_local === 0 ? "Cloud transcription" : null,
+  ]
+    .filter(Boolean)
+    .join(". ");
+
   return (
     <Pressable
       onPress={() => onExpand(item)}
       className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 active:bg-gray-50 dark:active:bg-gray-900"
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint="Tap to view full transcription"
     >
       <View className="flex-row items-start justify-between mb-1">
         <View className="flex-row items-center gap-2 flex-1">
-          <Text className="text-xs text-gray-400">
+          <Text className="text-xs text-gray-400" importantForAccessibility="no">
             {formatDate(item.timestamp)}
           </Text>
           {item.was_processed === 1 && (
-            <View className="bg-purple-100 dark:bg-purple-900/30 px-1.5 py-0.5 rounded">
+            <View className="bg-purple-100 dark:bg-purple-900/30 px-1.5 py-0.5 rounded" accessibilityLabel="AI processed">
               <Text className="text-[10px] text-purple-600 dark:text-purple-400">
                 AI
               </Text>
             </View>
           )}
           {item.is_local === 0 && (
-            <View className="bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded">
+            <View className="bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded" accessibilityLabel="Cloud transcription">
               <Text className="text-[10px] text-blue-600 dark:text-blue-400">
                 Cloud
               </Text>
@@ -90,6 +102,7 @@ function TranscriptionItem({
       <Text
         className="text-sm text-gray-800 dark:text-gray-200 leading-5"
         numberOfLines={3}
+        importantForAccessibility="no"
       >
         {preview}
       </Text>
@@ -98,7 +111,7 @@ function TranscriptionItem({
           onPress={handleCopy}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Copy"
+          accessibilityLabel="Copy transcription"
         >
           <FontAwesome name="copy" size={14} color="#9ca3af" />
         </Pressable>
@@ -106,7 +119,7 @@ function TranscriptionItem({
           onPress={handleShare}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Share"
+          accessibilityLabel="Share transcription"
         >
           <FontAwesome name="share-square-o" size={14} color="#9ca3af" />
         </Pressable>
@@ -114,7 +127,7 @@ function TranscriptionItem({
           onPress={handleDelete}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Delete"
+          accessibilityLabel="Delete transcription"
         >
           <FontAwesome name="trash-o" size={14} color="#ef4444" />
         </Pressable>
@@ -158,20 +171,20 @@ function TranscriptionDetail({
   return (
     <View className="flex-1 bg-white dark:bg-black">
       <View className="flex-row items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
-        <Pressable onPress={onClose} hitSlop={8}>
+        <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Go back">
           <FontAwesome name="chevron-left" size={16} color="#3b82f6" />
         </Pressable>
         <Text className="text-xs text-gray-400">
           {formatDate(item.timestamp)}
         </Text>
         <View className="flex-row gap-4">
-          <Pressable onPress={handleCopy} hitSlop={8}>
+          <Pressable onPress={handleCopy} hitSlop={8} accessibilityRole="button" accessibilityLabel="Copy transcription">
             <FontAwesome name="copy" size={16} color="#6b7280" />
           </Pressable>
-          <Pressable onPress={handleShare} hitSlop={8}>
+          <Pressable onPress={handleShare} hitSlop={8} accessibilityRole="button" accessibilityLabel="Share transcription">
             <FontAwesome name="share-square-o" size={16} color="#6b7280" />
           </Pressable>
-          <Pressable onPress={handleDelete} hitSlop={8}>
+          <Pressable onPress={handleDelete} hitSlop={8} accessibilityRole="button" accessibilityLabel="Delete transcription">
             <FontAwesome name="trash-o" size={16} color="#ef4444" />
           </Pressable>
         </View>
@@ -239,6 +252,8 @@ export default function HistoryScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             clearButtonMode="while-editing"
+            accessibilityLabel="Search transcriptions"
+            accessibilityHint="Type to filter your transcription history"
           />
         </View>
       </View>

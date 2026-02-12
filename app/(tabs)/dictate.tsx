@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { Pressable, Share, Text, View } from "react-native";
+import { AccessibilityInfo, Pressable, Share, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
@@ -47,9 +47,11 @@ export default function DictateScreen() {
       const started = await startRecording();
       if (started) {
         playStartCue();
+        AccessibilityInfo.announceForAccessibility("Recording started");
       }
     } else if (recordingState === "recording") {
       playStopCue();
+      AccessibilityInfo.announceForAccessibility("Recording stopped. Transcribing.");
       const uri = await stopRecording();
       if (uri) {
         if (canTranscribe) {
@@ -60,6 +62,9 @@ export default function DictateScreen() {
             Haptics.notificationAsync(
               Haptics.NotificationFeedbackType.Success
             );
+            AccessibilityInfo.announceForAccessibility(
+              "Transcription complete. " + result.text.slice(0, 100)
+            );
           } catch (err) {
             const message =
               err instanceof Error ? err.message : "Transcription failed";
@@ -67,6 +72,7 @@ export default function DictateScreen() {
             Haptics.notificationAsync(
               Haptics.NotificationFeedbackType.Error
             );
+            AccessibilityInfo.announceForAccessibility("Transcription failed. " + message);
           }
           setRecordingState("idle");
         } else {
@@ -153,6 +159,7 @@ export default function DictateScreen() {
                 style={{ borderCurve: "continuous" }}
                 accessibilityRole="button"
                 accessibilityLabel="Copy transcribed text"
+                accessibilityHint="Copies the transcription to your clipboard"
               >
                 <FontAwesome name="copy" size={14} color="#6b7280" />
                 <Text className="text-sm text-gray-600 dark:text-gray-400">
@@ -165,6 +172,7 @@ export default function DictateScreen() {
                 style={{ borderCurve: "continuous" }}
                 accessibilityRole="button"
                 accessibilityLabel="Share transcribed text"
+                accessibilityHint="Opens the share sheet to send text to other apps"
               >
                 <FontAwesome name="share-square-o" size={14} color="#6b7280" />
                 <Text className="text-sm text-gray-600 dark:text-gray-400">
