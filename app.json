@@ -11,12 +11,18 @@
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#ffffff",
+      "dark": {
+        "image": "./assets/images/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#000000"
+      }
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.openwhispr.mobile",
       "deploymentTarget": "17.0",
+      "buildNumber": "1",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "OpenWhispr needs microphone access to record your voice for speech-to-text transcription.",
         "UIBackgroundModes": [
