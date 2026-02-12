@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "481ae6d17500",
+  "strategy": "manual-commit",
+  "branch": "mobile",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".gitignore"
+  ],
+  "sessions": [
+    {
+      "metadata": "/48/1ae6d17500/0/metadata.json",
+      "transcript": "/48/1ae6d17500/0/full.jsonl",
+      "context": "/48/1ae6d17500/0/context.md",
+      "content_hash": "/48/1ae6d17500/0/content_hash.txt",
+      "prompt": "/48/1ae6d17500/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 47392,
+    "cache_read_tokens": 2575778,
+    "output_tokens": 1157,
+    "api_call_count": 34
+  }
+}
