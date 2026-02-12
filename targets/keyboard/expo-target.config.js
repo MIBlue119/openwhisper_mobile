@@ -11,5 +11,8 @@ module.exports = {
     "com.apple.security.application-groups": [
       "group.com.openwhispr.mobile",
     ],
+    "keychain-access-groups": [
+      "$(AppIdentifierPrefix)com.openwhispr.mobile.shared",
+    ],
   },
 };

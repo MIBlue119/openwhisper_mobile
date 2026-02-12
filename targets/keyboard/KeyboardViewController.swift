@@ -78,6 +78,11 @@ class KeyboardViewController: UIInputViewController {
         dictateButton.addTarget(self, action: #selector(dictateButtonTapped), for: .touchUpInside)
         dictateButton.translatesAutoresizingMaskIntoConstraints = false
 
+        // Long-press to cancel active dictation
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(dictateButtonLongPressed(_:)))
+        longPress.minimumPressDuration = 0.5
+        dictateButton.addGestureRecognizer(longPress)
+
         // Status label
         statusLabel = UILabel()
         statusLabel.text = "Tap to dictate"
@@ -174,9 +179,16 @@ class KeyboardViewController: UIInputViewController {
         ])
     }
 
+    // MARK: - Haptics
+
+    private let lightImpact = UIImpactFeedbackGenerator(style: .light)
+    private let mediumImpact = UIImpactFeedbackGenerator(style: .medium)
+
     // MARK: - Dictation
 
     @objc private func dictateButtonTapped() {
+        mediumImpact.impactOccurred()
+
         let currentState = appGroupStorage.getDictationState()
 
         // If already recording, signal stop
@@ -205,6 +217,21 @@ class KeyboardViewController: UIInputViewController {
 
         // Deep link to main app to activate background audio session
         openMainApp(sessionId: sessionId)
+    }
+
+    @objc private func dictateButtonLongPressed(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began else { return }
+        // Long-press cancels the current dictation
+        guard currentSessionId != nil else { return }
+
+        mediumImpact.impactOccurred()
+        let errorState = DictationState(
+            sessionId: currentSessionId!,
+            phase: .error,
+            error: "Cancelled"
+        )
+        appGroupStorage.setDictationState(errorState)
+        resetToIdle()
     }
 
     private func signalStop() {

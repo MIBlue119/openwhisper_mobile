@@ -11,7 +11,7 @@
       <key>NSExtensionAttributes</key>
       <dict>
         <key>RequestsOpenAccess</key>
-        <false/>
+        <true/>
         <key>IsASCIICapable</key>
         <false/>
         <key>PrefersRightToLeft</key>

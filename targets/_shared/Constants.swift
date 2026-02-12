@@ -3,6 +3,7 @@ import Foundation
 /// Shared constants between the main app and keyboard extension.
 enum OpenWhisprConstants {
     static let appGroupIdentifier = "group.com.openwhispr.mobile"
+    static let keychainAccessGroup = "com.openwhispr.mobile.shared"
     static let urlScheme = "openwhispr"
 
     /// UserDefaults keys for App Group shared storage.
