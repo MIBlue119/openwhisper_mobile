@@ -58,6 +58,7 @@ export default function SettingsScreen() {
     recommendedModel,
     downloadProgress,
     isLoading,
+    error: whisperKitError,
     initialize,
     downloadModel,
     deleteModel,
@@ -200,6 +201,7 @@ export default function SettingsScreen() {
           recommendedModel={recommendedModel}
           downloadProgress={downloadProgress}
           isInitializing={isLoading}
+          error={whisperKitError}
           onSelect={initialize}
           onDownload={downloadModel}
           onDelete={deleteModel}

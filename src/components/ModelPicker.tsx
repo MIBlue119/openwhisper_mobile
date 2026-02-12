@@ -26,6 +26,7 @@ interface ModelPickerProps {
   recommendedModel: string | null;
   downloadProgress: Record<string, number>;
   isInitializing: boolean;
+  error: string | null;
   onSelect: (name: string) => void;
   onDownload: (name: string) => void;
   onDelete: (name: string) => void;
@@ -205,6 +206,7 @@ export function ModelPicker({
   recommendedModel,
   downloadProgress,
   isInitializing,
+  error,
   onSelect,
   onDownload,
   onDelete,
@@ -215,20 +217,32 @@ export function ModelPicker({
       <Text style={styles.subtitle}>
         Download a model for on-device transcription
       </Text>
-      {models.map((model) => (
-        <ModelRow
-          key={model.name}
-          model={model}
-          isActive={currentModel === model.name}
-          isRecommended={recommendedModel === model.name}
-          recommendedModel={recommendedModel}
-          downloadProgress={downloadProgress[model.name]}
-          isInitializing={isInitializing && currentModel === model.name}
-          onSelect={() => onSelect(model.name)}
-          onDownload={() => onDownload(model.name)}
-          onDelete={() => onDelete(model.name)}
-        />
-      ))}
+      {error ? (
+        <View style={styles.errorContainer}>
+          <FontAwesome name="exclamation-triangle" size={16} color="#f59e0b" />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : models.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size="small" color="#3b82f6" />
+          <Text style={styles.emptyText}>Loading models...</Text>
+        </View>
+      ) : (
+        models.map((model) => (
+          <ModelRow
+            key={model.name}
+            model={model}
+            isActive={currentModel === model.name}
+            isRecommended={recommendedModel === model.name}
+            recommendedModel={recommendedModel}
+            downloadProgress={downloadProgress[model.name]}
+            isInitializing={isInitializing && currentModel === model.name}
+            onSelect={() => onSelect(model.name)}
+            onDownload={() => onDownload(model.name)}
+            onDelete={() => onDelete(model.name)}
+          />
+        ))
+      )}
     </View>
   );
 }
@@ -366,5 +380,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#ffffff",
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#fffbeb",
+    borderRadius: 12,
+    borderCurve: "continuous",
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#fde68a",
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#92400e",
+    lineHeight: 18,
+  },
+  emptyContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: 20,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#6b7280",
   },
 });
