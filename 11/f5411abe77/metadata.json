@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "11f5411abe77",
+  "strategy": "auto-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "modules/whisperkit/src/index.ts",
+    "src/hooks/useWhisperKit.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/11/f5411abe77/0/metadata.json",
+      "transcript": "/11/f5411abe77/0/full.jsonl",
+      "context": "",
+      "content_hash": "/11/f5411abe77/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 31,
+    "cache_creation_tokens": 84404,
+    "cache_read_tokens": 1825652,
+    "output_tokens": 3114,
+    "api_call_count": 29
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "11f5411abe77",
+  "session_id": "54ee5757-10c2-4548-87d6-dcaf38e79e19",
+  "strategy": "auto-commit",
+  "created_at": "2026-02-12T13:58:16.014488Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "modules/whisperkit/src/index.ts",
+    "src/hooks/useWhisperKit.ts"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 31,
+    "cache_creation_tokens": 84404,
+    "cache_read_tokens": 1825652,
+    "output_tokens": 3114,
+    "api_call_count": 29
+  }
+}
