@@ -232,31 +232,31 @@ openwhispr-mobile/
 **Goal:** Cloud transcription (OpenAI, Groq, Mistral) and AI text enhancement (OpenAI, Anthropic, Gemini).
 
 **Tasks:**
-- [ ] Implement `CloudTranscription.ts` service:
+- [x] Implement `CloudTranscription.ts` service:
   - OpenAI `/v1/audio/transcriptions` (multipart/form-data upload)
   - Groq `/v1/audio/transcriptions`
   - Mistral (no CORS issues in RN, call directly)
   - Support custom base URL for self-hosted endpoints
-- [ ] Implement AI reasoning services (all direct fetch, no IPC needed):
+- [x] Implement AI reasoning services (all direct fetch, no IPC needed):
   - `OpenAIService.ts` -- Responses API (`/v1/responses`) with Chat Completions fallback
   - `AnthropicService.ts` -- Messages API (`/v1/messages`) -- direct call (no CORS in RN)
   - `GeminiService.ts` -- generateContent API
   - `GroqService.ts` -- Chat Completions API
-- [ ] Implement `ReasoningService.ts` -- agent detection + provider routing:
+- [x] Implement `ReasoningService.ts` -- agent detection + provider routing:
   - Detect "Hey [AgentName]" patterns in transcribed text
   - Route to configured AI provider
   - Remove agent name from final output
   - Use system prompt from `BaseReasoningService` patterns
-- [ ] Implement `useTranscription.ts` orchestrator hook:
+- [x] Implement `useTranscription.ts` orchestrator hook:
   - Route to local (WhisperKit) or cloud based on settings
   - Optionally pipe through AI reasoning
   - Handle errors with user-friendly messages
   - Track usage for OpenWhispr cloud users
-- [ ] Copy `modelRegistryData.json` from desktop (cloud providers section)
-- [ ] Implement `ModelRegistry.ts` wrapper for iOS (filter out desktop-only models)
-- [ ] Build API key management settings screen (expo-secure-store)
-- [ ] Build transcription mode selection UI (local vs cloud, model picker)
-- [ ] Build AI reasoning configuration UI (provider, model, agent name)
+- [x] Copy `modelRegistryData.json` from desktop (cloud providers section)
+- [x] Implement `ModelRegistry.ts` wrapper for iOS (filter out desktop-only models)
+- [x] Build API key management settings screen (expo-secure-store)
+- [x] Build transcription mode selection UI (local vs cloud, model picker)
+- [x] Build AI reasoning configuration UI (provider, model, agent name)
 
 **Deliverables:** Full transcription pipeline working (local + cloud + AI enhancement).
 

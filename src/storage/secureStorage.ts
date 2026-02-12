@@ -26,4 +26,11 @@ export const SecureKeys = {
   ANTHROPIC_API_KEY: "anthropic_api_key",
   GEMINI_API_KEY: "gemini_api_key",
   GROQ_API_KEY: "groq_api_key",
+  MISTRAL_API_KEY: "mistral_api_key",
 } as const;
+
+/** Convenience alias for reading a secure value */
+export const getSecure = getSecureValue;
+
+/** Convenience alias for writing a secure value */
+export const setSecure = setSecureValue;

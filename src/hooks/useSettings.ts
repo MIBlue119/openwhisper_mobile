@@ -8,6 +8,9 @@ export const SettingKeys = {
   AGENT_NAME: "agentName",
   REASONING_MODEL: "reasoningModel",
   REASONING_PROVIDER: "reasoningProvider",
+  REASONING_ENABLED: "reasoningEnabled",
+  CLOUD_TRANSCRIPTION_PROVIDER: "cloudTranscriptionProvider",
+  CLOUD_TRANSCRIPTION_MODEL: "cloudTranscriptionModel",
   HAS_COMPLETED_ONBOARDING: "hasCompletedOnboarding",
   CUSTOM_DICTIONARY: "customDictionary",
   AUTO_COPY: "autoCopy",
@@ -99,4 +102,16 @@ export function useReasoningProvider() {
 
 export function useReasoningModel() {
   return useSetting(SettingKeys.REASONING_MODEL);
+}
+
+export function useReasoningEnabled() {
+  return useBooleanSetting(SettingKeys.REASONING_ENABLED, false);
+}
+
+export function useCloudTranscriptionProvider() {
+  return useSetting(SettingKeys.CLOUD_TRANSCRIPTION_PROVIDER);
+}
+
+export function useCloudTranscriptionModel() {
+  return useSetting(SettingKeys.CLOUD_TRANSCRIPTION_MODEL);
 }

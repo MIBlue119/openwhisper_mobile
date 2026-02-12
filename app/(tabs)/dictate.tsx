@@ -8,7 +8,8 @@ import { useAppStore } from "@/src/stores/appStore";
 import { useAudioRecording } from "@/src/hooks/useAudioRecording";
 import { usePermissions } from "@/src/hooks/usePermissions";
 import { useWhisperKit } from "@/src/hooks/useWhisperKit";
-import { transcribeLocal } from "@/src/services/WhisperKitService";
+import { useTranscription } from "@/src/hooks/useTranscription";
+import { useLocalWhisper } from "@/src/hooks/useSettings";
 import { RecordButton } from "@/src/components/RecordButton";
 import { WaveformVisualizer } from "@/src/components/WaveformVisualizer";
 import { PermissionPrompt } from "@/src/components/PermissionPrompt";
@@ -26,6 +27,11 @@ export default function DictateScreen() {
   const { microphone, loading, requestMicrophonePermission, openSettings } =
     usePermissions();
   const { isInitialized } = useWhisperKit();
+  const { transcribe } = useTranscription();
+  const [useLocal] = useLocalWhisper();
+
+  // Can transcribe if local model is loaded, or if using cloud transcription
+  const canTranscribe = isInitialized || !useLocal;
 
   const handleRecordPress = useCallback(async () => {
     if (recordingState === "idle") {
@@ -34,11 +40,10 @@ export default function DictateScreen() {
     } else if (recordingState === "recording") {
       const uri = await stopRecording();
       if (uri) {
-        if (isInitialized) {
-          // Transcribe with WhisperKit
+        if (canTranscribe) {
           setRecordingState("processing");
           try {
-            const result = await transcribeLocal({ audioPath: uri });
+            const result = await transcribe(uri);
             setTranscribedText(result.text);
             Haptics.notificationAsync(
               Haptics.NotificationFeedbackType.Success
@@ -50,7 +55,6 @@ export default function DictateScreen() {
           }
           setRecordingState("idle");
         } else {
-          // No model loaded — show the audio path and a hint
           setTranscribedText(null);
           setError(
             "No transcription model loaded. Go to Settings → Models to download one."
@@ -61,9 +65,10 @@ export default function DictateScreen() {
     }
   }, [
     recordingState,
-    isInitialized,
+    canTranscribe,
     startRecording,
     stopRecording,
+    transcribe,
     setRecordingState,
     setTranscribedText,
     setError,
@@ -157,7 +162,7 @@ export default function DictateScreen() {
             <Text className="text-base text-gray-400 dark:text-gray-500 text-center">
               Tap the button to start dictating
             </Text>
-            {!isInitialized && (
+            {!canTranscribe && (
               <Text className="text-sm text-amber-500 mt-2 text-center">
                 No model loaded — go to Settings to download one
               </Text>
