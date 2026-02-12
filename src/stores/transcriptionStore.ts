@@ -1,98 +1,73 @@
-import { useSyncExternalStore } from "react";
-import type { TranscriptionItem } from "../types/electron";
+import { create } from "zustand";
+import {
+  getTranscriptions,
+  searchTranscriptions,
+  deleteTranscription,
+  insertTranscription,
+  type TranscriptionRow,
+} from "@/src/storage/database";
 
-type Listener = () => void;
+interface TranscriptionStore {
+  transcriptions: TranscriptionRow[];
+  isLoading: boolean;
+  searchQuery: string;
 
-const listeners = new Set<Listener>();
-let transcriptions: TranscriptionItem[] = [];
-let hasBoundIpcListeners = false;
-const DEFAULT_LIMIT = 50;
-let currentLimit = DEFAULT_LIMIT;
-
-const emit = () => {
-  listeners.forEach((listener) => listener());
-};
-
-const subscribe = (listener: Listener) => {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-};
-
-const getSnapshot = () => transcriptions;
-
-function ensureIpcListeners() {
-  if (hasBoundIpcListeners || typeof window === "undefined") {
-    return;
-  }
-
-  const disposers: Array<() => void> = [];
-
-  if (window.electronAPI?.onTranscriptionAdded) {
-    const dispose = window.electronAPI.onTranscriptionAdded((item) => {
-      if (item) {
-        addTranscription(item);
-      }
-    });
-    if (typeof dispose === "function") {
-      disposers.push(dispose);
-    }
-  }
-
-  if (window.electronAPI?.onTranscriptionDeleted) {
-    const dispose = window.electronAPI.onTranscriptionDeleted(({ id }) => {
-      removeTranscription(id);
-    });
-    if (typeof dispose === "function") {
-      disposers.push(dispose);
-    }
-  }
-
-  if (window.electronAPI?.onTranscriptionsCleared) {
-    const dispose = window.electronAPI.onTranscriptionsCleared(() => {
-      clearTranscriptions();
-    });
-    if (typeof dispose === "function") {
-      disposers.push(dispose);
-    }
-  }
-
-  hasBoundIpcListeners = true;
-
-  window.addEventListener("beforeunload", () => {
-    disposers.forEach((dispose) => dispose());
-  });
+  loadTranscriptions: () => void;
+  search: (query: string) => void;
+  clearSearch: () => void;
+  addTranscription: (params: {
+    text: string;
+    duration?: number;
+    modelUsed?: string;
+    isLocal?: boolean;
+    wasProcessed?: boolean;
+    processingMethod?: string;
+  }) => number;
+  removeTranscription: (id: number) => void;
 }
 
-export async function initializeTranscriptions(limit = DEFAULT_LIMIT) {
-  currentLimit = limit;
-  ensureIpcListeners();
-  const items = await window.electronAPI.getTranscriptions(limit);
-  transcriptions = items;
-  emit();
-  return items;
-}
+export const useTranscriptionStore = create<TranscriptionStore>((set, get) => ({
+  transcriptions: [],
+  isLoading: false,
+  searchQuery: "",
 
-export function addTranscription(item: TranscriptionItem) {
-  if (!item) return;
-  const withoutDuplicate = transcriptions.filter((existing) => existing.id !== item.id);
-  transcriptions = [item, ...withoutDuplicate].slice(0, currentLimit);
-  emit();
-}
+  loadTranscriptions: () => {
+    set({ isLoading: true });
+    const rows = getTranscriptions(100);
+    set({ transcriptions: rows, isLoading: false });
+  },
 
-export function removeTranscription(id: number) {
-  if (!id) return;
-  const next = transcriptions.filter((item) => item.id !== id);
-  if (next.length === transcriptions.length) return;
-  transcriptions = next;
-  emit();
-}
+  search: (query: string) => {
+    set({ searchQuery: query, isLoading: true });
+    const rows = query.trim()
+      ? searchTranscriptions(query)
+      : getTranscriptions(100);
+    set({ transcriptions: rows, isLoading: false });
+  },
 
-export function clearTranscriptions() {
-  if (transcriptions.length === 0) return;
-  transcriptions = [];
-  emit();
-}
+  clearSearch: () => {
+    set({ searchQuery: "" });
+    get().loadTranscriptions();
+  },
 
-export function useTranscriptions() {
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-}
+  addTranscription: (params) => {
+    const id = insertTranscription(params);
+    // Refresh the list
+    const query = get().searchQuery;
+    const rows = query.trim()
+      ? searchTranscriptions(query)
+      : getTranscriptions(100);
+    set({ transcriptions: rows });
+    return id;
+  },
+
+  removeTranscription: (id: number) => {
+    deleteTranscription(id);
+    // Refresh the list
+    const query = get().searchQuery;
+    const rows = query.trim()
+      ? searchTranscriptions(query)
+      : getTranscriptions(100);
+    set({ transcriptions: rows });
+  },
+}));

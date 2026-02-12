@@ -15,6 +15,7 @@ import { ModelPicker } from "@/src/components/ModelPicker";
 import { ApiKeyInput } from "@/src/components/ApiKeyInput";
 import { SettingsSection } from "@/src/components/SettingsSection";
 import { PickerSelect } from "@/src/components/PickerSelect";
+import { DictionaryManager } from "@/src/components/DictionaryManager";
 import { SecureKeys } from "@/src/storage/secureStorage";
 import {
   getTranscriptionProviders,
@@ -236,6 +237,14 @@ export default function SettingsScreen() {
             </View>
           </>
         )}
+      </SettingsSection>
+
+      {/* Custom Dictionary */}
+      <SettingsSection
+        title="Custom Dictionary"
+        subtitle="Improve transcription accuracy for specific words"
+      >
+        <DictionaryManager />
       </SettingsSection>
 
       {/* API Keys */}

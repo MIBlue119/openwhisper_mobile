@@ -5,6 +5,7 @@ import { SettingKeys } from "@/src/hooks/useSettings";
 import { transcribeLocal } from "@/src/services/WhisperKitService";
 import { transcribeCloud } from "@/src/services/CloudTranscription";
 import { processReasoning } from "@/src/services/ReasoningService";
+import { useTranscriptionStore } from "@/src/stores/transcriptionStore";
 import type { TranscriptionProviderId, ReasoningProviderId } from "@/src/models/ModelRegistry";
 
 export interface TranscriptionResult {
@@ -56,6 +57,8 @@ async function getTranscriptionApiKey(
  * 3. Return final text
  */
 export function useTranscription() {
+  const addTranscription = useTranscriptionStore((s) => s.addTranscription);
+
   const transcribe = useCallback(
     async (audioPath: string): Promise<TranscriptionResult> => {
       const useLocal =
@@ -64,17 +67,17 @@ export function useTranscription() {
       const customDictionary = getCustomDictionary();
 
       let transcribedText: string;
+      let modelUsed: string | undefined;
 
       if (useLocal) {
-        // Local transcription via WhisperKit
         const result = await transcribeLocal({
           audioPath,
           language: language === "auto" ? undefined : language,
           customDictionary,
         });
         transcribedText = result.text;
+        modelUsed = storage.getString(SettingKeys.WHISPER_MODEL) ?? "whisperkit";
       } else {
-        // Cloud transcription
         const provider = (storage.getString(
           SettingKeys.CLOUD_TRANSCRIPTION_PROVIDER
         ) ?? "openai") as TranscriptionProviderId;
@@ -92,12 +95,15 @@ export function useTranscription() {
           customDictionary,
         });
         transcribedText = result.text;
+        modelUsed = `${provider}/${model}`;
       }
 
       // Optionally pipe through AI reasoning
       const reasoningEnabled =
         storage.getBoolean(SettingKeys.REASONING_ENABLED) ?? false;
       const agentName = storage.getString(SettingKeys.AGENT_NAME);
+      let wasProcessed = false;
+      let processingMethod: string | undefined;
 
       if (reasoningEnabled && agentName) {
         const provider = (storage.getString(SettingKeys.REASONING_PROVIDER) ??
@@ -112,12 +118,25 @@ export function useTranscription() {
           customDictionary,
         });
 
-        return { text: processed || transcribedText, wasProcessed: true };
+        if (processed) {
+          transcribedText = processed;
+          wasProcessed = true;
+          processingMethod = `${provider}/${model}`;
+        }
       }
 
-      return { text: transcribedText, wasProcessed: false };
+      // Save to database
+      addTranscription({
+        text: transcribedText,
+        modelUsed,
+        isLocal: useLocal,
+        wasProcessed,
+        processingMethod,
+      });
+
+      return { text: transcribedText, wasProcessed };
     },
-    []
+    [addTranscription]
   );
 
   return { transcribe };

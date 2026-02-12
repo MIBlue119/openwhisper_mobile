@@ -265,8 +265,8 @@ openwhispr-mobile/
 **Goal:** SQLite database for transcription history, settings persistence.
 
 **Tasks:**
-- [ ] Set up expo-sqlite with Drizzle ORM
-- [ ] Define schema:
+- [x] Set up expo-sqlite with schema and migrations
+- [x] Define schema:
   ```sql
   CREATE TABLE transcriptions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -285,13 +285,13 @@ openwhispr-mobile/
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   ```
-- [ ] Implement Drizzle migrations
-- [ ] Build `transcriptionStore.ts` (Zustand) with reactive history list
-- [ ] Build History screen: list of transcriptions with timestamps, search, swipe-to-delete
-- [ ] Build transcription detail view: full text, copy button, share button, delete
-- [ ] Build custom dictionary management UI (add/remove words)
-- [ ] Sync custom dictionary between MMKV (fast access) and SQLite (persistent)
-- [ ] Implement `appStore.ts` (Zustand) for recording/transcribing state
+- [x] Implement database migrations (via expo-sqlite sync API)
+- [x] Build `transcriptionStore.ts` (Zustand) with reactive history list
+- [x] Build History screen: list of transcriptions with timestamps, search, swipe-to-delete
+- [x] Build transcription detail view: full text, copy button, share button, delete
+- [x] Build custom dictionary management UI (add/remove words)
+- [x] Sync custom dictionary between MMKV (fast access) and SQLite (persistent)
+- [x] Implement `appStore.ts` (Zustand) for recording/transcribing state
 
 **Deliverables:** Transcription history with search, custom dictionary management.
 
