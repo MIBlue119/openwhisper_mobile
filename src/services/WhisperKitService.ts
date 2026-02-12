@@ -1,5 +1,6 @@
 import * as WhisperKitModule from "@/modules/whisperkit/src";
 import type { TranscriptionResult } from "@/modules/whisperkit/src";
+import * as Network from "expo-network";
 import { storage } from "@/src/storage/mmkv";
 import { SettingKeys } from "@/src/hooks/useSettings";
 
@@ -78,4 +79,53 @@ export function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024)
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+const CELLULAR_WARNING_THRESHOLD = 100 * 1024 * 1024; // 100 MB
+
+/**
+ * Check if downloading a model on cellular should trigger a warning.
+ * Returns { shouldWarn: true } if on cellular and model exceeds 100MB.
+ */
+export async function checkNetworkForDownload(
+  modelSizeBytes: number
+): Promise<{ shouldWarn: boolean; networkType: string }> {
+  try {
+    const networkState = await Network.getNetworkStateAsync();
+    const isCellular =
+      networkState.type === Network.NetworkStateType.CELLULAR;
+    return {
+      shouldWarn: isCellular && modelSizeBytes > CELLULAR_WARNING_THRESHOLD,
+      networkType: isCellular ? "cellular" : "wifi",
+    };
+  } catch {
+    // If we can't determine network type, don't block the download
+    return { shouldWarn: false, networkType: "unknown" };
+  }
+}
+
+/**
+ * Check if a model is larger than the recommended model for this device.
+ * Returns a warning message if the model may cause performance issues.
+ */
+export async function getModelCompatibilityWarning(
+  modelName: string,
+  modelSizeBytes: number,
+  recommendedModel: string | null
+): Promise<string | null> {
+  if (!recommendedModel) return null;
+
+  try {
+    const models = await WhisperKitModule.getAvailableModels();
+    const recommended = models.find((m) => m.name === recommendedModel);
+    if (!recommended) return null;
+
+    // Warn if model is significantly larger than recommended (>2x size)
+    if (modelSizeBytes > recommended.sizeBytes * 2) {
+      return `This model (${formatBytes(modelSizeBytes)}) is much larger than the recommended model for your device (${recommended.displayName}, ${formatBytes(recommended.sizeBytes)}). It may cause slow transcription or memory issues.`;
+    }
+  } catch {
+    // Non-critical, skip warning
+  }
+  return null;
 }

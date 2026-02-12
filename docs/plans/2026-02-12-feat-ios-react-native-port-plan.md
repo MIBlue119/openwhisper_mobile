@@ -6,6 +6,25 @@ date: 2026-02-12
 
 # feat: Port OpenWhispr to iOS with React Native
 
+## Progress Summary (Last updated: 2026-02-12)
+
+| Phase | Description | Status | Progress |
+|-------|-------------|--------|----------|
+| **1** | Foundation (Project Setup + Audio) | Done | ██████████ ~95% (physical device test pending) |
+| **2** | WhisperKit Integration | Done | █████████░ ~95% (multi-device performance test pending — requires physical devices) |
+| **3** | Cloud Transcription + AI | **Done** | ██████████ 100% |
+| **4** | Data Layer + History | **Done** | ██████████ 100% |
+| **5** | Settings + Onboarding + Polish | In Progress | ██████░░░░ ~60% (edge cases, a11y, icons, EAS remaining) |
+| **6** | Auth + Cloud Features | Not Started | ░░░░░░░░░░ 0% (Optional for v1) |
+| **7A** | KB Extension: Infrastructure | Done | █████████░ 90% (shared Keychain pending) |
+| **7B** | KB Extension: UI (Native Swift) | Done | ████████░░ ~85% (haptics, long-press, device test pending) |
+| **7C** | KB Extension: Background Dictation | Not Started | ░░░░░░░░░░ 0% (stub only) |
+| **7D** | KB Extension: Settings & Onboarding | Not Started | ░░░░░░░░░░ 0% |
+| **7E** | KB Extension: Testing & Polish | Not Started | ░░░░░░░░░░ 0% |
+
+**v1 (no keyboard):** ~85% complete — Phases 1-5 core features done, polish items remaining
+**v2 (with keyboard):** ~50% complete — 7A+7B done, 7C-7E remaining
+
 ## Overview
 
 Port the OpenWhispr desktop dictation app (Electron) to iOS as a React Native app with full feature parity. The iOS app will use WhisperKit for on-device speech-to-text (replacing whisper.cpp), Expo with development builds for the framework, and direct API calls for cloud transcription and AI reasoning providers.
@@ -185,7 +204,7 @@ openwhispr-mobile/
 - [x] Set up react-native-mmkv for settings storage
 - [x] Set up expo-secure-store for API key storage
 - [x] Implement `usePermissions.ts` hook (microphone permission check/request)
-- [ ] Run on physical iOS device to verify audio recording works
+- [ ] Run on physical iOS device to verify audio recording works (requires physical device)
 
 **Deliverables:** App records audio, shows waveform, saves WAV file locally.
 
@@ -214,7 +233,7 @@ openwhispr-mobile/
   - `getRecommendedModel() -> Promise<String>` -- WhisperKit's device-specific recommendation
 - [x] Implement model download with progress events (emit events from Swift to JS)
 - [x] Implement disk space check before model download
-- [ ] Handle cellular vs WiFi download policy (warn for downloads >100MB on cellular)
+- [x] Handle cellular vs WiFi download policy (warn for downloads >100MB on cellular)
 - [x] Implement `useWhisperKit.ts` hook wrapping the native module
 - [x] Implement `WhisperKitService.ts` for the transcription pipeline:
   - Receive audio file path from recording
@@ -223,7 +242,7 @@ openwhispr-mobile/
 - [x] Build ModelPicker component (list models, download progress, delete, select)
 - [x] Store models in `Library/Application Support/whisperkit-models/` with `isExcludedFromBackup` flag
 - [ ] Test on multiple iPhone generations (iPhone 12, 14, 16) for performance
-- [ ] Implement device compatibility warnings for large models on older devices
+- [x] Implement device compatibility warnings for large models on older devices
 
 **Deliverables:** Record audio -> transcribe locally with WhisperKit -> display text.
 
@@ -673,31 +692,32 @@ Keyboard                          Main App
 **Goal:** Build the keyboard extension UI in SwiftUI with all states, Full Access detection, and text insertion.
 
 **Tasks:**
-- [ ] Implement `KeyboardViewController.swift` with SwiftUI hosting:
-  - Microphone button (large, centered) with tap and long-press
-  - "Next Keyboard" globe button (Apple requirement — `advanceToNextInputMode()`)
-  - Status indicator: idle / recording (pulsing) / transcribing (spinner) / done (checkmark) / error (message)
+- [x] Implement `KeyboardViewController.swift` (UIKit, implemented during 7A):
+  - Microphone button (large, centered) with tap
+  - "Next Keyboard" globe button (Apple requirement — `handleInputModeList`)
+  - Status indicator: idle / recording / transcribing / done / error with color + icon changes
   - Full Access detection (`hasFullAccess` check with setup guidance view)
-  - Dark mode support via `traitCollection.userInterfaceStyle`
-  - Haptic feedback on button taps (`UIImpactFeedbackGenerator`)
-- [ ] Implement App Group state observer:
+  - Dark mode support via `traitCollection.userInterfaceStyle` + `traitCollectionDidChange`
+  - [ ] TODO: Add haptic feedback on button taps (`UIImpactFeedbackGenerator`)
+  - [ ] TODO: Add long-press gesture for mic button
+- [x] Implement App Group state observer:
   - 0.5s polling timer for `DictationState` changes in App Group UserDefaults
   - Darwin notification observer for real-time signals (`CFNotificationCenterGetDarwinNotifyCenter`)
   - Session ID matching to prevent stale result insertion
-- [ ] Implement text insertion via `UITextDocumentProxy`:
+- [x] Implement text insertion via `UITextDocumentProxy`:
   - Smart whitespace: check `documentContextBeforeInput` — prepend space if last char isn't space/newline
   - Handle long text (insert in one call — `insertText()` handles this correctly)
-- [ ] Implement URL scheme launcher:
-  - `UIApplication.shared.open(URL(string: "openwhispr://dictate?session=\(sessionId)")!)`
-  - Detect whether to deep-link (first use / session expired) or signal via Darwin notification (session active)
-- [ ] Configure keyboard height via Auto Layout constraints (~200pt for dictation-only)
+- [x] Implement URL scheme launcher:
+  - Uses responder chain `openURL:` selector (correct approach for extensions)
+  - Checks `backgroundSessionActive` — deep-links if no session, Darwin notification if session active
+- [x] Configure keyboard height via Auto Layout constraints (120pt for dictation-only)
 - [ ] Build and test on physical device (keyboard extensions don't work in simulator)
 
 **Files to create/modify:**
-- `targets/keyboard/KeyboardViewController.swift` (IMPLEMENT)
-- `targets/keyboard/Views/DictationButton.swift` (NEW)
-- `targets/keyboard/Views/StatusView.swift` (NEW)
-- `targets/keyboard/Views/FullAccessGuide.swift` (NEW)
+- `targets/keyboard/KeyboardViewController.swift` (DONE — full UIKit implementation, 371 lines)
+- ~~`targets/keyboard/Views/DictationButton.swift`~~ (NOT NEEDED — UIKit button inline in controller)
+- ~~`targets/keyboard/Views/StatusView.swift`~~ (NOT NEEDED — status label inline in controller)
+- ~~`targets/keyboard/Views/FullAccessGuide.swift`~~ (NOT NEEDED — guide UI inline in controller)
 
 #### Phase 7C: Background Dictation Service (Main App)
 
@@ -818,8 +838,8 @@ Keyboard                          Main App
 
 | Dependency | Status | Notes |
 |------------|--------|-------|
-| Phases 1-5 complete | Done | Core app functionality required |
-| `@bacons/apple-targets` | Requires Expo SDK 53+ | May need SDK upgrade from current 54 — verify compatibility |
+| Phases 1-5 complete | ~85% Done | Core features done; edge cases, accessibility, icons, EAS Build remaining |
+| `@bacons/apple-targets` | Done (v4.0.2) | Installed, keyboard target configured and verified |
 | Physical iPhone for testing | Required | Keyboard extensions don't work in iOS Simulator |
 | Apple Developer account | Required | For App Group entitlements and provisioning profiles |
 | EAS Build configured | Required | For building with extension target |

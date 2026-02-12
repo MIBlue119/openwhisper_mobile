@@ -13,7 +13,12 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import type { ModelInfo } from "@/modules/whisperkit/src";
-import { formatBytes, checkDiskSpaceForModel } from "@/src/services/WhisperKitService";
+import {
+  formatBytes,
+  checkDiskSpaceForModel,
+  checkNetworkForDownload,
+  getModelCompatibilityWarning,
+} from "@/src/services/WhisperKitService";
 
 interface ModelPickerProps {
   models: ModelInfo[];
@@ -42,6 +47,7 @@ function ModelRow({
   model,
   isActive,
   isRecommended,
+  recommendedModel,
   downloadProgress,
   isInitializing,
   onSelect,
@@ -51,6 +57,7 @@ function ModelRow({
   model: ModelInfo;
   isActive: boolean;
   isRecommended: boolean;
+  recommendedModel: string | null;
   downloadProgress?: number;
   isInitializing: boolean;
   onSelect: () => void;
@@ -60,6 +67,7 @@ function ModelRow({
   const isDownloading = downloadProgress !== undefined;
 
   const handleDownload = useCallback(async () => {
+    // Check disk space
     const { hasSpace, availableBytes } = await checkDiskSpaceForModel(
       model.sizeBytes
     );
@@ -70,8 +78,42 @@ function ModelRow({
       );
       return;
     }
+
+    // Check device compatibility for large models
+    const compatWarning = await getModelCompatibilityWarning(
+      model.name,
+      model.sizeBytes,
+      recommendedModel
+    );
+
+    // Check cellular network
+    const { shouldWarn: cellularWarn } = await checkNetworkForDownload(
+      model.sizeBytes
+    );
+
+    // Build combined warning if needed
+    const warnings: string[] = [];
+    if (compatWarning) warnings.push(compatWarning);
+    if (cellularWarn) {
+      warnings.push(
+        `You're on cellular data. This download is ${formatBytes(model.sizeBytes)}.`
+      );
+    }
+
+    if (warnings.length > 0) {
+      Alert.alert(
+        cellularWarn ? "Download on Cellular?" : "Large Model Warning",
+        warnings.join("\n\n"),
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Download Anyway", onPress: onDownload },
+        ]
+      );
+      return;
+    }
+
     onDownload();
-  }, [model.sizeBytes, onDownload]);
+  }, [model.sizeBytes, model.name, recommendedModel, onDownload]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
@@ -179,6 +221,7 @@ export function ModelPicker({
           model={model}
           isActive={currentModel === model.name}
           isRecommended={recommendedModel === model.name}
+          recommendedModel={recommendedModel}
           downloadProgress={downloadProgress[model.name]}
           isInitializing={isInitializing && currentModel === model.name}
           onSelect={() => onSelect(model.name)}
