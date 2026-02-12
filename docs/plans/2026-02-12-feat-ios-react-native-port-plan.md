@@ -194,8 +194,8 @@ openwhispr-mobile/
 **Goal:** On-device speech-to-text using WhisperKit via custom Expo Module.
 
 **Tasks:**
-- [ ] Create WhisperKit Expo Module (`npx create-expo-module modules/whisperkit --local`)
-- [ ] Add WhisperKit Swift Package dependency via cocoapods-spm plugin in Podfile:
+- [x] Create WhisperKit Expo Module (`npx create-expo-module modules/whisperkit --local`)
+- [x] Add WhisperKit Swift Package dependency via cocoapods-spm plugin in Podfile:
   ```ruby
   plugin "cocoapods-spm"
   spm_pkg "WhisperKit",
@@ -203,7 +203,7 @@ openwhispr-mobile/
     :version => "0.9.0",
     :products => ["WhisperKit"]
   ```
-- [ ] Implement `WhisperKitModule.swift` with these bridged methods:
+- [x] Implement `WhisperKitModule.swift` with these bridged methods:
   - `initialize(model: String) -> Promise<Bool>` -- Load WhisperKit with specified model
   - `transcribe(audioPath: String, language: String?, prompt: String?) -> Promise<TranscriptionResult>` -- Transcribe audio file
   - `downloadModel(name: String) -> Void` (with progress events) -- Download model from HuggingFace
@@ -212,16 +212,16 @@ openwhispr-mobile/
   - `getDownloadedModels() -> Promise<[String]>` -- List downloaded models
   - `isModelDownloaded(name: String) -> Promise<Bool>` -- Check if model exists
   - `getRecommendedModel() -> Promise<String>` -- WhisperKit's device-specific recommendation
-- [ ] Implement model download with progress events (emit events from Swift to JS)
-- [ ] Implement disk space check before model download
+- [x] Implement model download with progress events (emit events from Swift to JS)
+- [x] Implement disk space check before model download
 - [ ] Handle cellular vs WiFi download policy (warn for downloads >100MB on cellular)
-- [ ] Implement `useWhisperKit.ts` hook wrapping the native module
-- [ ] Implement `WhisperKitService.ts` for the transcription pipeline:
+- [x] Implement `useWhisperKit.ts` hook wrapping the native module
+- [x] Implement `WhisperKitService.ts` for the transcription pipeline:
   - Receive audio file path from recording
   - Pass to WhisperKit with language and custom dictionary prompt
   - Return transcription text
-- [ ] Build ModelPicker component (list models, download progress, delete, select)
-- [ ] Store models in `Library/Application Support/whisperkit-models/` with `isExcludedFromBackup` flag
+- [x] Build ModelPicker component (list models, download progress, delete, select)
+- [x] Store models in `Library/Application Support/whisperkit-models/` with `isExcludedFromBackup` flag
 - [ ] Test on multiple iPhone generations (iPhone 12, 14, 16) for performance
 - [ ] Implement device compatibility warnings for large models on older devices
 

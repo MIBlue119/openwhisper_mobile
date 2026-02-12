@@ -1,10 +1,14 @@
 import { useCallback } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Share, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
+import * as Haptics from "expo-haptics";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
 
 import { useAppStore } from "@/src/stores/appStore";
 import { useAudioRecording } from "@/src/hooks/useAudioRecording";
 import { usePermissions } from "@/src/hooks/usePermissions";
+import { useWhisperKit } from "@/src/hooks/useWhisperKit";
+import { transcribeLocal } from "@/src/services/WhisperKitService";
 import { RecordButton } from "@/src/components/RecordButton";
 import { WaveformVisualizer } from "@/src/components/WaveformVisualizer";
 import { PermissionPrompt } from "@/src/components/PermissionPrompt";
@@ -15,27 +19,66 @@ export default function DictateScreen() {
   const transcribedText = useAppStore((s) => s.transcribedText);
   const error = useAppStore((s) => s.error);
   const setRecordingState = useAppStore((s) => s.setRecordingState);
+  const setTranscribedText = useAppStore((s) => s.setTranscribedText);
+  const setError = useAppStore((s) => s.setError);
 
   const { startRecording, stopRecording } = useAudioRecording();
   const { microphone, loading, requestMicrophonePermission, openSettings } =
     usePermissions();
+  const { isInitialized } = useWhisperKit();
 
   const handleRecordPress = useCallback(async () => {
     if (recordingState === "idle") {
+      setError(null);
       await startRecording();
     } else if (recordingState === "recording") {
       const uri = await stopRecording();
       if (uri) {
-        // Phase 2 will add WhisperKit transcription here.
-        // For now, just mark as idle with the file path available.
-        setRecordingState("idle");
+        if (isInitialized) {
+          // Transcribe with WhisperKit
+          setRecordingState("processing");
+          try {
+            const result = await transcribeLocal({ audioPath: uri });
+            setTranscribedText(result.text);
+            Haptics.notificationAsync(
+              Haptics.NotificationFeedbackType.Success
+            );
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : "Transcription failed";
+            setError(message);
+          }
+          setRecordingState("idle");
+        } else {
+          // No model loaded — show the audio path and a hint
+          setTranscribedText(null);
+          setError(
+            "No transcription model loaded. Go to Settings → Models to download one."
+          );
+          setRecordingState("idle");
+        }
       }
     }
-  }, [recordingState, startRecording, stopRecording, setRecordingState]);
+  }, [
+    recordingState,
+    isInitialized,
+    startRecording,
+    stopRecording,
+    setRecordingState,
+    setTranscribedText,
+    setError,
+  ]);
 
-  const handleCopyText = useCallback(async () => {
+  const handleCopy = useCallback(async () => {
     if (transcribedText) {
       await Clipboard.setStringAsync(transcribedText);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  }, [transcribedText]);
+
+  const handleShare = useCallback(async () => {
+    if (transcribedText) {
+      await Share.share({ message: transcribedText });
     }
   }, [transcribedText]);
 
@@ -61,34 +104,65 @@ export default function DictateScreen() {
 
   return (
     <View className="flex-1 items-center justify-center bg-white dark:bg-black px-6">
-      {/* Status Text */}
-      <View className="mb-8 items-center">
+      {/* Status / Transcription Area */}
+      <View className="mb-8 items-center max-w-full">
         {recordingState === "recording" ? (
           <>
             <Text className="text-lg font-medium text-red-500 mb-3">
               Recording...
             </Text>
-            <WaveformVisualizer
-              audioLevel={audioLevel}
-              isActive={true}
-            />
+            <WaveformVisualizer audioLevel={audioLevel} isActive={true} />
           </>
         ) : recordingState === "processing" ? (
           <Text className="text-lg font-medium text-gray-500 dark:text-gray-400">
-            Processing...
+            Transcribing...
           </Text>
         ) : transcribedText ? (
-          <Text
-            className="text-base text-gray-800 dark:text-gray-200 text-center leading-6"
-            onPress={handleCopyText}
-            accessibilityHint="Tap to copy transcribed text"
-          >
-            {transcribedText}
-          </Text>
+          <View className="items-center gap-4">
+            <Text
+              className="text-base text-gray-800 dark:text-gray-200 text-center leading-6"
+              selectable
+            >
+              {transcribedText}
+            </Text>
+            <View className="flex-row gap-3">
+              <Pressable
+                onPress={handleCopy}
+                className="flex-row items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg px-4 py-2 active:opacity-70"
+                style={{ borderCurve: "continuous" }}
+                accessibilityRole="button"
+                accessibilityLabel="Copy transcribed text"
+              >
+                <FontAwesome name="copy" size={14} color="#6b7280" />
+                <Text className="text-sm text-gray-600 dark:text-gray-400">
+                  Copy
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleShare}
+                className="flex-row items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg px-4 py-2 active:opacity-70"
+                style={{ borderCurve: "continuous" }}
+                accessibilityRole="button"
+                accessibilityLabel="Share transcribed text"
+              >
+                <FontAwesome name="share-square-o" size={14} color="#6b7280" />
+                <Text className="text-sm text-gray-600 dark:text-gray-400">
+                  Share
+                </Text>
+              </Pressable>
+            </View>
+          </View>
         ) : (
-          <Text className="text-base text-gray-400 dark:text-gray-500 text-center">
-            Tap the button to start dictating
-          </Text>
+          <View className="items-center">
+            <Text className="text-base text-gray-400 dark:text-gray-500 text-center">
+              Tap the button to start dictating
+            </Text>
+            {!isInitialized && (
+              <Text className="text-sm text-amber-500 mt-2 text-center">
+                No model loaded — go to Settings to download one
+              </Text>
+            )}
+          </View>
         )}
       </View>
 
@@ -97,7 +171,10 @@ export default function DictateScreen() {
 
       {/* Error Display */}
       {error && (
-        <View className="mt-6 px-4 py-3 bg-red-50 dark:bg-red-900/20 rounded-xl" style={{ borderCurve: "continuous" }}>
+        <View
+          className="mt-6 px-4 py-3 bg-red-50 dark:bg-red-900/20 rounded-xl"
+          style={{ borderCurve: "continuous" }}
+        >
           <Text className="text-sm text-red-600 dark:text-red-400 text-center">
             {error}
           </Text>
