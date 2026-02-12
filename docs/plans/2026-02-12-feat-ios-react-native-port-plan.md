@@ -300,7 +300,7 @@ openwhispr-mobile/
 **Goal:** Complete settings interface, onboarding flow, and production polish.
 
 **Tasks:**
-- [ ] Build settings hub with sections:
+- [x] Build settings hub with sections:
   - **Transcription:** Engine selection (local/cloud), model picker, language
   - **AI Models:** Reasoning provider, model selection, agent name
   - **Dictionary:** Custom word management
@@ -309,17 +309,17 @@ openwhispr-mobile/
   - **Privacy:** Telemetry toggle
   - **Account:** Sign in/out, usage, billing (if OpenWhispr cloud)
   - **About:** App version, licenses
-- [ ] Build onboarding flow (5 screens):
+- [x] Build onboarding flow (5 screens):
   1. Welcome + optional auth
   2. Microphone permission request
   3. Transcription setup (local/cloud + model download)
   4. Agent naming
   5. Setup complete
-- [ ] Implement theme system (light/dark/auto) with NativeWind
-- [ ] Add haptic feedback (expo-haptics) for record start/stop and transcription complete
+- [x] Implement theme system (light/dark/auto) with NativeWind
+- [x] Add haptic feedback (expo-haptics) for record start/stop and transcription complete
 - [ ] Add audio cues for dictation start/stop (port sound files from desktop)
-- [ ] Implement copy-to-clipboard for transcription results
-- [ ] Implement iOS Share Sheet for transcription text
+- [x] Implement copy-to-clipboard for transcription results
+- [x] Implement iOS Share Sheet for transcription text
 - [ ] Handle edge cases:
   - Audio interruptions (phone calls, Siri)
   - Background app transitions during recording

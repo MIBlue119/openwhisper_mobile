@@ -115,3 +115,7 @@ export function useCloudTranscriptionProvider() {
 export function useCloudTranscriptionModel() {
   return useSetting(SettingKeys.CLOUD_TRANSCRIPTION_MODEL);
 }
+
+export function useTheme() {
+  return useSetting(SettingKeys.THEME);
+}

@@ -1,5 +1,7 @@
 import { useCallback } from "react";
 import { Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
+import { useColorScheme } from "nativewind";
+import Constants from "expo-constants";
 import { useWhisperKit } from "@/src/hooks/useWhisperKit";
 import {
   useLocalWhisper,
@@ -10,6 +12,7 @@ import {
   useReasoningEnabled,
   useCloudTranscriptionProvider,
   useCloudTranscriptionModel,
+  useTheme,
 } from "@/src/hooks/useSettings";
 import { ModelPicker } from "@/src/components/ModelPicker";
 import { ApiKeyInput } from "@/src/components/ApiKeyInput";
@@ -64,6 +67,20 @@ export default function SettingsScreen() {
   const [reasoningEnabled, setReasoningEnabled] = useReasoningEnabled();
   const [cloudProvider, setCloudProvider] = useCloudTranscriptionProvider();
   const [cloudModel, setCloudModel] = useCloudTranscriptionModel();
+  const [theme, setThemeSetting] = useTheme();
+  const { setColorScheme } = useColorScheme();
+
+  const handleThemeChange = useCallback(
+    (value: string) => {
+      setThemeSetting(value);
+      if (value === "light" || value === "dark") {
+        setColorScheme(value);
+      } else {
+        setColorScheme("system");
+      }
+    },
+    [setThemeSetting, setColorScheme]
+  );
 
   // Build options from model registry
   const transcriptionProviderOptions = getTranscriptionProviders().map((p) => ({
@@ -277,6 +294,46 @@ export default function SettingsScreen() {
           secureKey={SecureKeys.MISTRAL_API_KEY}
           placeholder="..."
         />
+      </SettingsSection>
+
+      {/* Appearance */}
+      <SettingsSection
+        title="Appearance"
+        subtitle="Customize the app's look"
+      >
+        <PickerSelect
+          label="Theme"
+          options={[
+            { value: "auto", label: "System" },
+            { value: "light", label: "Light" },
+            { value: "dark", label: "Dark" },
+          ]}
+          value={theme ?? "auto"}
+          onChange={handleThemeChange}
+        />
+      </SettingsSection>
+
+      {/* About */}
+      <SettingsSection title="About" subtitle="App information">
+        <View className="flex-row justify-between items-center mb-2">
+          <Text className="text-sm text-gray-600 dark:text-gray-400">
+            Version
+          </Text>
+          <Text className="text-sm text-gray-900 dark:text-white">
+            {Constants.expoConfig?.version ?? "1.0.0"}
+          </Text>
+        </View>
+        <View className="flex-row justify-between items-center mb-2">
+          <Text className="text-sm text-gray-600 dark:text-gray-400">
+            Build
+          </Text>
+          <Text className="text-sm text-gray-900 dark:text-white">
+            {Constants.expoConfig?.ios?.buildNumber ?? "1"}
+          </Text>
+        </View>
+        <Text className="text-xs text-gray-400 mt-2 text-center">
+          OpenWhispr — Private, on-device dictation
+        </Text>
       </SettingsSection>
 
       <View className="h-8" />
