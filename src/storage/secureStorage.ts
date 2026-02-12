@@ -3,14 +3,13 @@ import * as SecureStore from "expo-secure-store";
 const KEY_PREFIX = "openwhispr_";
 
 /**
- * Shared Keychain access group for accessing API keys from both the main app
- * and the keyboard extension. Uses the same access group declared in entitlements.
+ * Shared Keychain service name used by both the main app and keyboard extension.
+ * Cross-target access is enabled by the shared `keychain-access-groups` entitlement
+ * (com.openwhispr.mobile.shared) declared in app.json and expo-target.config.js.
+ * Using a common `keychainService` ensures both targets reference the same items.
  */
-const KEYCHAIN_ACCESS_GROUP = "com.openwhispr.mobile.shared";
-
 const SECURE_STORE_OPTIONS: SecureStore.SecureStoreOptions = {
-  keychainAccessGroup: KEYCHAIN_ACCESS_GROUP,
-  keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+  keychainService: "com.openwhispr.shared",
 };
 
 function prefixedKey(key: string): string {
