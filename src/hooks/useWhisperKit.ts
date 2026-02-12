@@ -48,6 +48,8 @@ export function useWhisperKit(): UseWhisperKitReturn {
 
   // Subscribe to download events
   useEffect(() => {
+    if (!WhisperKitModule.isAvailable()) return;
+
     progressSubRef.current = WhisperKitModule.addDownloadProgressListener(
       (event: DownloadProgressEvent) => {
         setState((prev) => ({
@@ -89,6 +91,13 @@ export function useWhisperKit(): UseWhisperKitReturn {
 
   // Load available models and recommended model on mount
   useEffect(() => {
+    if (!WhisperKitModule.isAvailable()) {
+      setState((prev) => ({
+        ...prev,
+        error: "WhisperKit native module not available. Rebuild with 'npx expo run:ios'.",
+      }));
+      return;
+    }
     refreshModels();
     loadRecommendedModel();
   // eslint-disable-next-line react-hooks/exhaustive-deps

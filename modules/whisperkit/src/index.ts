@@ -1,5 +1,5 @@
 import {
-  requireNativeModule,
+  requireOptionalNativeModule,
   type EventSubscription,
 } from "expo-modules-core";
 
@@ -63,13 +63,30 @@ interface WhisperKitNativeModule {
 }
 
 const WhisperKitNative =
-  requireNativeModule<WhisperKitNativeModule>("WhisperKitModule");
+  requireOptionalNativeModule<WhisperKitNativeModule>("WhisperKitModule");
+
+function getNativeModule(): WhisperKitNativeModule {
+  if (!WhisperKitNative) {
+    throw new Error(
+      "WhisperKitModule native module is not available. " +
+        "Run 'npx expo run:ios' to rebuild the native app with the module included."
+    );
+  }
+  return WhisperKitNative;
+}
+
+/**
+ * Check if the WhisperKit native module is available.
+ */
+export function isAvailable(): boolean {
+  return WhisperKitNative != null;
+}
 
 /**
  * Initialize WhisperKit with a specific model.
  */
 export async function initialize(model: string): Promise<boolean> {
-  return WhisperKitNative.initialize(model);
+  return getNativeModule().initialize(model);
 }
 
 /**
@@ -80,7 +97,7 @@ export async function transcribe(
   language?: string,
   prompt?: string
 ): Promise<TranscriptionResult> {
-  return WhisperKitNative.transcribe(
+  return getNativeModule().transcribe(
     audioPath,
     language ?? null,
     prompt ?? null
@@ -91,49 +108,49 @@ export async function transcribe(
  * Download a WhisperKit model with progress events.
  */
 export async function downloadModel(name: string): Promise<boolean> {
-  return WhisperKitNative.downloadModel(name);
+  return getNativeModule().downloadModel(name);
 }
 
 /**
  * Delete a downloaded model to free disk space.
  */
 export async function deleteModel(name: string): Promise<boolean> {
-  return WhisperKitNative.deleteModel(name);
+  return getNativeModule().deleteModel(name);
 }
 
 /**
  * Get list of available models with metadata.
  */
 export async function getAvailableModels(): Promise<ModelInfo[]> {
-  return WhisperKitNative.getAvailableModels();
+  return getNativeModule().getAvailableModels();
 }
 
 /**
  * Get list of model names that are already downloaded.
  */
 export async function getDownloadedModels(): Promise<string[]> {
-  return WhisperKitNative.getDownloadedModels();
+  return getNativeModule().getDownloadedModels();
 }
 
 /**
  * Check if a specific model is downloaded.
  */
 export async function isModelDownloaded(name: string): Promise<boolean> {
-  return WhisperKitNative.isModelDownloaded(name);
+  return getNativeModule().isModelDownloaded(name);
 }
 
 /**
  * Get WhisperKit's recommended model for this device.
  */
 export async function getRecommendedModel(): Promise<string> {
-  return WhisperKitNative.getRecommendedModel();
+  return getNativeModule().getRecommendedModel();
 }
 
 /**
  * Get available disk space in bytes.
  */
 export async function getAvailableDiskSpace(): Promise<number> {
-  return WhisperKitNative.getAvailableDiskSpace();
+  return getNativeModule().getAvailableDiskSpace();
 }
 
 /**
@@ -142,7 +159,7 @@ export async function getAvailableDiskSpace(): Promise<number> {
 export function addDownloadProgressListener(
   listener: (event: DownloadProgressEvent) => void
 ): EventSubscription {
-  return WhisperKitNative.addListener("onDownloadProgress", listener);
+  return getNativeModule().addListener("onDownloadProgress", listener);
 }
 
 /**
@@ -151,5 +168,5 @@ export function addDownloadProgressListener(
 export function addDownloadCompleteListener(
   listener: (event: DownloadCompleteEvent) => void
 ): EventSubscription {
-  return WhisperKitNative.addListener("onDownloadComplete", listener);
+  return getNativeModule().addListener("onDownloadComplete", listener);
 }
