@@ -22,6 +22,7 @@ interface TranscriptionStore {
     isLocal?: boolean;
     wasProcessed?: boolean;
     processingMethod?: string;
+    source?: "app" | "keyboard";
   }) => number;
   removeTranscription: (id: number) => void;
 }

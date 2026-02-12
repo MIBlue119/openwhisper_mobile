@@ -66,6 +66,7 @@ function TranscriptionItem({
     preview,
     item.was_processed === 1 ? "AI processed" : null,
     item.is_local === 0 ? "Cloud transcription" : null,
+    item.source === "keyboard" ? "From keyboard" : null,
   ]
     .filter(Boolean)
     .join(". ");
@@ -94,6 +95,13 @@ function TranscriptionItem({
             <View className="bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded" accessibilityLabel="Cloud transcription">
               <Text className="text-[10px] text-blue-600 dark:text-blue-400">
                 Cloud
+              </Text>
+            </View>
+          )}
+          {item.source === "keyboard" && (
+            <View className="bg-orange-100 dark:bg-orange-900/30 px-1.5 py-0.5 rounded" accessibilityLabel="From keyboard">
+              <Text className="text-[10px] text-orange-600 dark:text-orange-400">
+                Keyboard
               </Text>
             </View>
           )}
@@ -196,10 +204,19 @@ function TranscriptionDetail({
         >
           {item.text}
         </Text>
-        {item.model_used && (
-          <Text className="text-xs text-gray-400 mt-4">
-            Model: {item.model_used}
-          </Text>
+        {(item.model_used || item.source === "keyboard") && (
+          <View className="flex-row flex-wrap gap-3 mt-4">
+            {item.model_used && (
+              <Text className="text-xs text-gray-400">
+                Model: {item.model_used}
+              </Text>
+            )}
+            {item.source === "keyboard" && (
+              <Text className="text-xs text-orange-500">
+                Via keyboard
+              </Text>
+            )}
+          </View>
         )}
       </View>
     </View>
