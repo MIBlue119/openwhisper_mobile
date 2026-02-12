@@ -1,5 +1,6 @@
 import { Audio, InterruptionModeIOS } from "expo-av";
 import { useCallback, useEffect, useRef } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 import { useAppStore } from "@/src/stores/appStore";
 
 const RECORDING_OPTIONS: Audio.RecordingOptions = {
@@ -156,6 +157,25 @@ export function useAudioRecording(): UseAudioRecordingReturn {
     setRecordingState("idle");
     setAudioFilePath(null);
   }, [setRecordingState, setAudioFilePath, stopMetering]);
+
+  // Handle app going to background while recording
+  // iOS may interrupt audio session during phone calls or Siri
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState === "background" || nextState === "inactive") {
+        // If recording, attempt graceful stop so audio isn't lost
+        if (recordingRef.current) {
+          stopRecording().catch(() => {
+            // If stop fails (e.g. audio interrupted), cancel instead
+            cancelRecording();
+          });
+        }
+      }
+    };
+
+    const sub = AppState.addEventListener("change", handleAppStateChange);
+    return () => sub.remove();
+  }, [stopRecording, cancelRecording]);
 
   // Cleanup on unmount
   useEffect(() => {

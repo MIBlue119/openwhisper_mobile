@@ -1,7 +1,11 @@
-import { useCallback } from "react";
-import { Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
+import { useCallback, useState } from "react";
+import { ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { useColorScheme } from "nativewind";
 import Constants from "expo-constants";
+import {
+  areAudioCuesEnabled,
+  setAudioCuesEnabled,
+} from "@/src/utils/audioCues";
 import { useWhisperKit } from "@/src/hooks/useWhisperKit";
 import {
   useLocalWhisper,
@@ -69,6 +73,7 @@ export default function SettingsScreen() {
   const [cloudModel, setCloudModel] = useCloudTranscriptionModel();
   const [theme, setThemeSetting] = useTheme();
   const { setColorScheme } = useColorScheme();
+  const [audioCues, setAudioCues] = useState(areAudioCuesEnabled);
 
   const handleThemeChange = useCallback(
     (value: string) => {
@@ -311,6 +316,26 @@ export default function SettingsScreen() {
           value={theme ?? "auto"}
           onChange={handleThemeChange}
         />
+
+        <View className="flex-row items-center justify-between mt-3">
+          <View className="flex-1">
+            <Text className="text-base font-medium text-gray-800 dark:text-gray-200">
+              Audio cues
+            </Text>
+            <Text className="text-xs text-gray-500 mt-1">
+              Play sounds when recording starts and stops
+            </Text>
+          </View>
+          <Switch
+            value={audioCues}
+            onValueChange={(value) => {
+              setAudioCues(value);
+              setAudioCuesEnabled(value);
+            }}
+            trackColor={{ false: "#d1d5db", true: "#3b82f6" }}
+            accessibilityLabel="Toggle audio cues"
+          />
+        </View>
       </SettingsSection>
 
       {/* About */}

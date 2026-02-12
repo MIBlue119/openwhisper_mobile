@@ -60,14 +60,44 @@ export async function transcribeCloud(
       ? { "x-api-key": apiKey }
       : { Authorization: `Bearer ${apiKey}` };
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
+  // 60s timeout for cloud transcription
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60_000);
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body: formData,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeout);
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(
+        "Cloud transcription timed out. Check your internet connection and try again."
+      );
+    }
+    throw new Error(
+      "Network error — could not reach transcription service. Check your internet connection."
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "Unknown error");
+    if (response.status === 401) {
+      throw new Error(
+        `Invalid ${provider} API key. Check your key in Settings → API Keys.`
+      );
+    }
+    if (response.status === 429) {
+      throw new Error(
+        `${provider} rate limit exceeded. Please wait a moment and try again.`
+      );
+    }
     throw new Error(
       `${provider} transcription failed (${response.status}): ${errorBody}`
     );

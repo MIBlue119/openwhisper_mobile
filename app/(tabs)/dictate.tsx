@@ -13,6 +13,7 @@ import { useLocalWhisper } from "@/src/hooks/useSettings";
 import { RecordButton } from "@/src/components/RecordButton";
 import { WaveformVisualizer } from "@/src/components/WaveformVisualizer";
 import { PermissionPrompt } from "@/src/components/PermissionPrompt";
+import { playStartCue, playStopCue } from "@/src/utils/audioCues";
 
 export default function DictateScreen() {
   const recordingState = useAppStore((s) => s.recordingState);
@@ -35,9 +36,20 @@ export default function DictateScreen() {
 
   const handleRecordPress = useCallback(async () => {
     if (recordingState === "idle") {
+      // Re-check permission in case it was revoked while app was open
+      if (microphone !== "granted") {
+        setError(
+          "Microphone access was revoked. Go to Settings to re-enable it."
+        );
+        return;
+      }
       setError(null);
-      await startRecording();
+      const started = await startRecording();
+      if (started) {
+        playStartCue();
+      }
     } else if (recordingState === "recording") {
+      playStopCue();
       const uri = await stopRecording();
       if (uri) {
         if (canTranscribe) {
@@ -52,6 +64,9 @@ export default function DictateScreen() {
             const message =
               err instanceof Error ? err.message : "Transcription failed";
             setError(message);
+            Haptics.notificationAsync(
+              Haptics.NotificationFeedbackType.Error
+            );
           }
           setRecordingState("idle");
         } else {
@@ -65,6 +80,7 @@ export default function DictateScreen() {
     }
   }, [
     recordingState,
+    microphone,
     canTranscribe,
     startRecording,
     stopRecording,
